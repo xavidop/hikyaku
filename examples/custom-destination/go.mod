@@ -163,12 +163,13 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nats.go v1.55.0 // indirect
-	github.com/nats-io/nkeys v0.4.16 // indirect
+	github.com/nats-io/nkeys v0.4.17 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
-	github.com/openai/openai-go v1.8.2 // indirect
-	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
+	github.com/openai/openai-go v1.12.0 // indirect
+	github.com/pb33f/go-yaml v0.1.0 // indirect
+	github.com/pb33f/ordered-map/v2 v2.3.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
 	github.com/pion/dtls/v4 v4.0.1 // indirect
@@ -188,7 +189,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -252,7 +253,6 @@ require (
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.62.0 // indirect
