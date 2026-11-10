@@ -86,7 +86,7 @@ jobs:
       # cosign-installer v3 installs cosign v2, whose sign-blob writes the
       # .sig/.pem pair .goreleaser.yaml publishes and the release notes verify.
       - name: Install cosign (signatures)
-        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       # dockers_v2 builds the linux/amd64 + linux/arm64 image with buildx, which
       # needs a builder that can build for several platforms. The Dockerfile
