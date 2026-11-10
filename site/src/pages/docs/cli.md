@@ -417,8 +417,8 @@ hikyaku dlq list [--since 1h] [--json]
 ```
 
 `hikyaku dlq list` lists the dead letters, one line each: ID, time, the destination that failed
-(or `route <name>` when routing failed), the reason (`delivery`, `no_route` or `transform`), the
-attempts and the last error.
+(or `route <name>` when routing failed), the reason (`delivery`, `no_route`, `transform` or
+`schema`), the attempts and the last error.
 
 | Flag | Meaning |
 |---|---|
@@ -451,7 +451,7 @@ key, so a destination that already has the message can drop the duplicate.
 
 - A dead letter goes to the destination that failed, or to `--to` when it is set, through that
   destination's full retry and fallback path.
-- A routing failure (reason `no_route` or `transform`) without `--to` runs through its route
+- A routing failure (reason `no_route`, `transform` or `schema`) without `--to` runs through its route
   again.
 - A message that fails again is dead-lettered again.
 

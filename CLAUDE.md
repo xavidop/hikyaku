@@ -54,6 +54,9 @@ These record where the build departs from the design, and the decisions the desi
   - **Readiness** fails only while a required destination's whole fallback chain is down.
   - **`multi: true` without `min_confidence`** uses 0.5.
   - **Group members** fail over on transient failures only: a permanent one stops the group.
+- **`validate` transform:** a JSON Schema check, inline (`schema`) or from a file (`file`, relative to the working directory, like `cert_file`).
+  - `transform.SchemaError` marks a refusal. On a route it dead-letters with reason `schema` and tag `schema`: http answers 422 with the error, openai 400. On a destination it is a failed transform (a permanent hop).
+  - Formats are asserted. Nothing is fetched over the network for a `$ref`.
 - **Engine hooks:**
   - The history recorder starts in `engine.New`, so injected messages (send, route, dlq replay) record too.
   - Sinks that serve something of their own (sse) implement `plugin.Starter`. Only `engine.Run` starts them, so one-shot commands never take a running relay's port.

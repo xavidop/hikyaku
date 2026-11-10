@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/xavidop/hikyaku/metrics"
 	"github.com/xavidop/hikyaku/plugin"
 	"github.com/xavidop/hikyaku/store"
+	"github.com/xavidop/hikyaku/transform"
 )
 
 // DecisionView is a routing decision, as reports show it.
@@ -226,8 +228,15 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 	}
 	keep, err := r.transforms.Apply(renv)
 	if err != nil {
-		rr.Error = "transform: " + err.Error()
-		return rr, []dlqItem{{env: env, info: DLQInfo{Route: r.name, Reason: ReasonTransform, Error: rr.Error}, err: plugin.Wrap(plugin.Permanent, []string{plugin.TagTransform}, err)}}
+		reason, tag := ReasonTransform, plugin.TagTransform
+		rr.Error = transformError(err)
+		if isSchemaError(err) {
+			reason, tag = ReasonSchema, plugin.TagSchema
+			if e.m != nil {
+				e.m.SchemaInvalid.WithLabelValues(r.name).Inc()
+			}
+		}
+		return rr, []dlqItem{{env: env, info: DLQInfo{Route: r.name, Reason: reason, Error: rr.Error}, err: plugin.Wrap(plugin.Permanent, []string{tag}, err)}}
 	}
 	if !keep {
 		rr.Filtered = true
@@ -264,6 +273,22 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 	}
 	e.recordHistory(dec, rr.Deliveries)
 	return rr, dl
+}
+
+// isSchemaError tells a validate step's refusal from a transform that
+// broke.
+func isSchemaError(err error) bool {
+	var se *transform.SchemaError
+	return errors.As(err, &se)
+}
+
+// transformError is the report text of a failed route transform. A schema
+// refusal already says what it is.
+func transformError(err error) string {
+	if isSchemaError(err) {
+		return err.Error()
+	}
+	return "transform: " + err.Error()
 }
 
 // deliverAll delivers to every destination in parallel.

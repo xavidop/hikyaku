@@ -336,6 +336,12 @@ func (l *Listener) answer(w http.ResponseWriter, env *envelope.Envelope, o envel
 		}
 		writeJSON(w, http.StatusOK, reply{ID: env.ID, Status: o.Status.String()})
 	case envelope.DeadLettered:
+		// A body a route's validate step refused is the caller's to fix:
+		// it is told what is wrong with it.
+		if slices.Contains(plugin.Tags(o.Err), plugin.TagSchema) {
+			writeJSON(w, http.StatusUnprocessableEntity, reply{ID: env.ID, Status: o.Status.String(), Error: o.Err.Error()})
+			return
+		}
 		code := http.StatusAccepted
 		if l.respond != nil {
 			code = http.StatusBadGateway

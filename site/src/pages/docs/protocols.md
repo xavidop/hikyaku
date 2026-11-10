@@ -158,7 +158,7 @@ caller when to try again.
 The answer to a request depends on `ack`:
 
 - `ack: delivered` (the default) answers once the message is delivered (`200`) or dead-lettered
-  (`202`).
+  (`202`). A body that a route's `validate` step refused gets `422`, with what is wrong with it.
 - `ack: accepted` answers `202` as soon as the message is queued.
 - `respond.from: <destination>` returns that destination's reply to the caller instead: `502` if
   the message was dead-lettered, `504` when no reply came within `respond.timeout` (default 30s).

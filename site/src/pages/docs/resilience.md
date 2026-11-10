@@ -238,13 +238,14 @@ dead_letter:
   fallback: [stdout]
 ```
 
-A message goes to `dead_letter` for one of three reasons, recorded in its `dlq` attribute:
+A message goes to `dead_letter` for one of four reasons, recorded in its `dlq` attribute:
 
 | Reason | When | One dead letter per |
 |---|---|---|
 | `delivery` | a required destination failed: its primary, all its fallbacks or its deadline are exhausted | failed required destination, with `dlq.destination` |
 | `no_route` | every router of a route's chain failed or chose no destination | route, with `dlq.route` |
 | `transform` | a route transform failed | route, with `dlq.route` |
+| `schema` | a route's [`validate`](/docs/transforms/#validate-json-schema) step refused the body | route, with `dlq.route` |
 
 The `dlq` attribute also holds the time, the relay, the attempts, the last error and every hop.
 When an AI router decided, the envelope keeps `ai.decision` too. A best-effort destination
@@ -266,7 +267,7 @@ hikyaku dlq replay --id 01JC3Z8Q6ZK3V0B9D3T5V7X9YB --to billing-dr
 `hikyaku dlq` reads a file DLQ. `replay` sends messages through again, with their original
 idempotency keys. So a destination that already has a message sees a duplicate it can drop. A
 `delivery` dead letter goes back to the destination that failed, or to `--to`, through its full
-retry and fallback path. A `no_route` or `transform` dead letter runs through its route again:
+retry and fallback path. A `no_route`, `transform` or `schema` dead letter runs through its route again:
 its filter, its transforms and its router chain, then delivery. A message that fails again is
 dead-lettered again. `hikyaku_dlq_total` counts dead letters.
 

@@ -214,6 +214,7 @@ func TestChatFailures(t *testing.T) {
 	}{
 		{"unrouted", envelope.Outcome{Status: envelope.Unrouted}, 404, "model_not_found"},
 		{"no route", envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.Permanent, []string{plugin.TagNoRoute}, "no rule matched")}, 404, "model_not_found"},
+		{"schema", envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.Permanent, []string{plugin.TagSchema}, "schema: missing property 'model'")}, 400, "schema"},
 		{"transform", envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.Permanent, []string{plugin.TagTransform}, "jq failed")}, 500, "transform_failed"},
 		{"rate limited", envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.RateLimited, nil, "slow down")}, 429, "rate_limited"},
 		{"bad request", envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.Permanent, []string{"model:bad_request"}, "tools are not supported")}, 400, "bad_request"},

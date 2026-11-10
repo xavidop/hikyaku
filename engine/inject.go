@@ -75,7 +75,7 @@ func (e *Engine) dryRun(ctx context.Context, routes []*route, env *envelope.Enve
 		keep, err := r.transforms.Apply(renv)
 		switch {
 		case err != nil:
-			rr.Error = "transform: " + err.Error()
+			rr.Error = transformError(err)
 		case !keep:
 			rr.Filtered = true
 		default:

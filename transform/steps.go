@@ -72,6 +72,12 @@ func Compile(path string, specs []config.Transform) (Chain, error) {
 				return nil, fmt.Errorf("%s.codec: %w", p, err)
 			}
 			step = c
+		case t.Validate != nil:
+			s, err := CompileSchema(t.Validate)
+			if err != nil {
+				return nil, fmt.Errorf("%s.validate: %w", p, err)
+			}
+			step = s
 		case t.ContentType != "":
 			step = contentTypeStep(t.ContentType)
 		default:

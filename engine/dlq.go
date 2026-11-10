@@ -27,6 +27,7 @@ const (
 	ReasonDelivery  = "delivery"  // a required destination and its fallbacks failed
 	ReasonNoRoute   = "no_route"  // no router of the chain could decide
 	ReasonTransform = "transform" // a route transform failed
+	ReasonSchema    = "schema"    // a route's validate step refused the body
 )
 
 // DLQInfo is the metadata stored with a dead letter, under the dlq

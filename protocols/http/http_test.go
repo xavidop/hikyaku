@@ -299,6 +299,19 @@ func TestListenAckDelivered(t *testing.T) {
 	assert.Equal(t, "5", resp.Header.Get("Retry-After"))
 }
 
+// A body a route's validate step refused is the caller's mistake: 422, with
+// what is wrong, though the message is kept in the DLQ like any other.
+func TestListenSchemaFailureIs422(t *testing.T) {
+	url, out := listener(t, config.Source{Path: "/ingest"}, 10)
+	acker(out, func(*envelope.Envelope) envelope.Outcome {
+		return envelope.Outcome{Status: envelope.DeadLettered, Err: plugin.Errorf(plugin.Permanent, []string{plugin.TagSchema}, "schema: id: got number, want string")}
+	})
+	resp, m := post(t, url, `{"id":7}`, nil)
+	assert.Equal(t, 422, resp.StatusCode)
+	assert.Equal(t, "dead_lettered", m["status"])
+	assert.Equal(t, "schema: id: got number, want string", m["error"])
+}
+
 func TestListenEnvelopeFields(t *testing.T) {
 	url, out := listener(t, config.Source{Path: "/ingest", Ack: "accepted"}, 10)
 	resp, m := post(t, url+"?x=1", `{"a":1}`, map[string]string{"Content-Type": "application/json", "Idempotency-Key": "evt-42", "X-Event": "invoice.paid", "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"})

@@ -75,6 +75,7 @@ The `openai` source is the endpoint your clients call. It serves two paths.
 | the relay's queue is full | 503, with `Retry-After` | `overloaded` |
 | no route serves the model | 404 | `model_not_found` |
 | a request the model destination cannot run: an invalid one (an unknown role, `n` above 8), one the model cannot take (tools, `tool_choice` or media it does not support), or one the provider refused as invalid | 400 | `bad_request` |
+| a route's `validate` step refused the request body | 400 | `schema` |
 | a route transform failed | 500 | `transform_failed` |
 | the relay's filters rejected it | 403 | `filtered` |
 | rate limited | 429, with `Retry-After` | `rate_limited` |

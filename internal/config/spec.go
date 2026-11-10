@@ -609,12 +609,20 @@ type AIBudget struct {
 
 // Transform is one step: exactly one of its fields is set.
 type Transform struct {
-	Filter      string     `yaml:"filter,omitempty" jsonschema_description:"CEL expression; false drops the message from this route or destination."`
-	JQ          string     `yaml:"jq,omitempty" jsonschema_description:"jq program over the JSON body; its output is the new body."`
-	Template    string     `yaml:"template,omitempty" jsonschema_description:"Go template rendered as the new body."`
-	Headers     *HeaderOps `yaml:"headers,omitempty" jsonschema_description:"Set, add or remove headers (values are templates)."`
-	Codec       string     `yaml:"codec,omitempty" jsonschema:"enum=json,enum=text,enum=base64_encode,enum=base64_decode,enum=form_to_json,enum=cloudevents" jsonschema_description:"Re-encode the body."`
-	ContentType string     `yaml:"content_type,omitempty" jsonschema_description:"Set the content type (alone, or after jq or template)."`
+	Filter      string       `yaml:"filter,omitempty" jsonschema_description:"CEL expression; false drops the message from this route or destination."`
+	JQ          string       `yaml:"jq,omitempty" jsonschema_description:"jq program over the JSON body; its output is the new body."`
+	Template    string       `yaml:"template,omitempty" jsonschema_description:"Go template rendered as the new body."`
+	Headers     *HeaderOps   `yaml:"headers,omitempty" jsonschema_description:"Set, add or remove headers (values are templates)."`
+	Codec       string       `yaml:"codec,omitempty" jsonschema:"enum=json,enum=text,enum=base64_encode,enum=base64_decode,enum=form_to_json,enum=cloudevents" jsonschema_description:"Re-encode the body."`
+	ContentType string       `yaml:"content_type,omitempty" jsonschema_description:"Set the content type (alone, or after jq or template)."`
+	Validate    *SchemaCheck `yaml:"validate,omitempty" jsonschema_description:"Check the JSON body against a JSON Schema; a body that does not match is a failure."`
+}
+
+// SchemaCheck is a transform (validate:) that checks the body against a JSON Schema. It
+// never changes the message.
+type SchemaCheck struct {
+	Schema map[string]any `yaml:"schema,omitempty" jsonschema_description:"The JSON Schema, written inline."`
+	File   string         `yaml:"file,omitempty" jsonschema_description:"A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory."`
 }
 
 // HeaderOps edits headers.

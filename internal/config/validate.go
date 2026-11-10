@@ -808,7 +808,7 @@ func (v *validator) ai(p string, rs *RouterSpec, dests, stores map[string]bool) 
 func (v *validator) transforms(p string, ts []Transform) {
 	for i, t := range ts {
 		set := 0
-		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != ""} {
+		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil} {
 			if ok {
 				set++
 			}
@@ -816,9 +816,20 @@ func (v *validator) transforms(p string, ts []Transform) {
 		tp := p + "[" + strconv.Itoa(i) + "]"
 		switch {
 		case set == 0 && t.ContentType == "":
-			v.add(tp, "set one of filter, jq, template, headers, codec or content_type")
+			v.add(tp, "set one of filter, jq, template, headers, codec, validate or content_type")
 		case set > 1:
-			v.add(tp, "set only one of filter, jq, template, headers and codec per transform")
+			v.add(tp, "set only one of filter, jq, template, headers, codec and validate per transform")
+		}
+		if va := t.Validate; va != nil {
+			switch {
+			case va.Schema == nil && va.File == "":
+				v.add(tp+".validate", "set schema (inline) or file")
+			case va.Schema != nil && va.File != "":
+				v.add(tp+".validate", "set only one of schema and file")
+			}
+			if t.ContentType != "" {
+				v.add(tp+".validate", "content_type does not go with validate: it never changes the message")
+			}
 		}
 	}
 }

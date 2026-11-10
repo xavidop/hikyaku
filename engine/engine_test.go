@@ -548,6 +548,81 @@ routes:
 	assert.Equal(t, "unrouted", rep.Status)
 }
 
+// A body a route's validate step refuses is dead-lettered with reason
+// schema, and a source can tell it from a transform that broke. Replay runs
+// the route again, so a fixed message goes through.
+func TestSchemaFailureDeadLetters(t *testing.T) {
+	const s = `
+version: 1
+name: relay
+sources: [{ name: in, type: stdin }, { name: in2, type: stdin }]
+destinations:
+  - { name: out, type: fault }
+  - name: strict
+    type: fault
+    transforms: [{ validate: { schema: { type: object, required: [sku] } } }]
+dead_letter: { type: fault }
+routes:
+  - name: orders
+    from: [in]
+    transforms:
+      - validate:
+          schema: { type: object, required: [id], properties: { id: { type: string } } }
+    to: [out]
+  - { name: picky, from: [in2], to: [strict] }
+`
+	out, strict, dlq := &scripted{name: "out"}, &scripted{name: "strict"}, &scripted{name: "dead_letter"}
+	setSinks(t, out, strict, dlq)
+	reg := metrics.New()
+	e := build(t, s, Options{Metrics: reg})
+
+	rep := e.Inject(context.Background(), msg("in", `{"id":"o-1"}`))
+	assert.Equal(t, "delivered", rep.Status)
+	require.Equal(t, 1, out.count())
+
+	var acked envelope.Outcome
+	bad := msg("in", `{"id":7}`)
+	bad.OnAck(func(_ context.Context, o envelope.Outcome) { acked = o })
+	rep = e.Inject(context.Background(), bad)
+	assert.Equal(t, "dead_lettered", rep.Status)
+	assert.Equal(t, "schema: id: got number, want string", rep.Routes[0].Error)
+	assert.Contains(t, plugin.Tags(acked.Err), plugin.TagSchema)
+	assert.Equal(t, 1, out.count(), "the refused message never reaches the destination")
+	require.Equal(t, 1, dlq.count())
+	info, _ := InfoOf(dlq.call(0))
+	assert.Equal(t, ReasonSchema, info.Reason)
+	assert.Equal(t, "orders", info.Route)
+	assert.Empty(t, info.Destination)
+	assert.InDelta(t, 1, testutil.ToFloat64(reg.SchemaInvalid.WithLabelValues("orders")), 0)
+
+	plans, err := e.DryRun(context.Background(), "in", msg("in", `[]`))
+	require.NoError(t, err)
+	assert.Equal(t, "schema: got array, want object", plans[0].Error)
+
+	// On a destination, validate fails that hop as permanent: the dead
+	// letter is a delivery one, and it names the destination.
+	rep = e.Inject(context.Background(), msg("in2", `{"id":"o-2"}`))
+	assert.Equal(t, "dead_lettered", rep.Status)
+	assert.Equal(t, 0, strict.count())
+	require.Equal(t, 2, dlq.count())
+	info, _ = InfoOf(dlq.call(1))
+	assert.Equal(t, ReasonDelivery, info.Reason)
+	assert.Equal(t, "strict", info.Destination)
+	assert.Contains(t, info.Error, "schema: missing property 'sku'")
+}
+
+func TestCheckSchema(t *testing.T) {
+	l := spec(t, `
+version: 1
+name: relay
+sources: [{ name: in, type: stdin }]
+destinations: [{ name: out, type: fault }]
+routes: [{ name: r, from: [in], to: [out] }]
+`)
+	l.Routes[0].Transforms = []config.Transform{{Validate: &config.SchemaCheck{Schema: map[string]any{"type": "strng"}}}}
+	assert.Contains(t, Check(l).Error(), `route "r".transforms[0].validate: `)
+}
+
 type historyRouter struct{ mem *store.Memory }
 
 func (h historyRouter) Route(_ context.Context, env *envelope.Envelope) (plugin.Decision, error) {

@@ -22,6 +22,7 @@ type Metrics struct {
 	Unrouted         *prometheus.CounterVec   // hikyaku_unrouted_total{source}
 	QueueDepth       prometheus.Gauge         // hikyaku_queue_depth (the disk buffer's messages with buffer.type: disk)
 	Rejected         *prometheus.CounterVec   // hikyaku_backpressure_total{source}
+	SchemaInvalid    *prometheus.CounterVec   // hikyaku_schema_invalid_total{route}
 	Routed           *prometheus.CounterVec   // hikyaku_route_decisions_total{route,router}
 	DeliveryAttempts *prometheus.CounterVec   // hikyaku_delivery_attempts_total{destination,endpoint,outcome}
 	DeliveryDuration *prometheus.HistogramVec // hikyaku_delivery_duration_seconds{destination,endpoint}
@@ -65,6 +66,7 @@ func New() *Metrics {
 		Unrouted:         f.counter("hikyaku_unrouted_total", "Messages no route took.", "source"),
 		QueueDepth:       f.gauge("hikyaku_queue_depth", "Messages waiting in the buffer."),
 		Rejected:         f.counter("hikyaku_backpressure_total", "Messages a source refused because the relay's buffer was full: http and openai answer 503, grpc RESOURCE_EXHAUSTED, udp drops the datagram.", "source"),
+		SchemaInvalid:    f.counter("hikyaku_schema_invalid_total", "Messages a route's validate step refused: the body did not match its JSON Schema.", "route"),
 		Routed:           f.counter("hikyaku_route_decisions_total", "Routing decisions, by route and the router that decided.", "route", "router"),
 		DeliveryAttempts: f.counter("hikyaku_delivery_attempts_total", "Delivery attempts, by destination, endpoint and outcome.", "destination", "endpoint", "outcome"),
 		DeliveryDuration: f.histogram("hikyaku_delivery_duration_seconds", "Duration of one delivery attempt.", prometheus.DefBuckets, "destination", "endpoint"),

@@ -80,6 +80,7 @@ hikyaku's own answers are JSON: `{"id": "<envelope ID>", "status": "<status>"}`,
 | A repeat that `dedupe` drops, under any `ack` mode | `200`, status `duplicate` |
 | `ack: delivered`: delivered, filtered by every route, or unrouted | `200` |
 | `ack: delivered`: dead-lettered | `202` |
+| `ack: delivered`: dead-lettered because a route's `validate` step refused the body | `422`, with the schema error |
 | `ack: delivered`: failed, because the DLQ failed too or a shutdown cut the delivery | `503`, with `Retry-After: 5` |
 | `ack: delivered`: no outcome within 30s (`respond.timeout`) | `202`, status `pending`: the message is still being delivered |
 
