@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/stretchr/testify v1.12.1
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.0.1
 )
 
 require (
@@ -24,5 +24,3 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/time v0.16.0 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ../..
