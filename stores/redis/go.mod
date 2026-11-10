@@ -9,7 +9,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.45.0
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.1.0
 )
 
 require (
@@ -70,5 +70,3 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ../..
