@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# webhook-fanout: a signed webhook fanned out to billing, analytics and an
+# archive. Billing retries with full jitter and fails over to its DR
+# endpoint, analytics is best-effort, and whatever still fails is
+# dead-lettered (with stderr as the DLQ's own fallback).
+version: 1
+name: webhook-fanout
+
+secrets:
+  WEBHOOK_SECRET: env:WEBHOOK_SECRET
+
+defaults:
+  timeout: 5s
+  retry: { attempts: 5, backoff: 200ms, max_backoff: 10s, jitter: full, retry_on: [connect, timeout, 5xx, 429], respect_retry_after: true }
+  circuit_breaker: { failure_ratio: 0.5, min_requests: 20, open_for: 30s, half_open_max: 5 }
+  retry_budget: { ratio: 0.2, min_per_second: 10 }
+
+sources:
+  - name: webhooks
+    type: http
+    mode: listen
+    listen: ":8080"
+    path: /ingest
+    auth:
+      hmac: { header: X-Signature-256, algo: sha256, secret: "{{secrets.WEBHOOK_SECRET}}" }
+
+destinations:
+  - name: billing
+    type: https
+    url: https://billing.internal/api/events
+    timeout: 3s
+    deadline: 30s
+    fallback: [billing-dr]
+  - name: billing-dr
+    type: https
+    url: https://billing-dr.internal/api/events
+  - name: analytics
+    type: https
+    url: https://analytics.internal/collect
+    required: false
+    retry: { attempts: 1 }
+  - name: archive
+    type: file
+    path: ./out/archive.ndjson
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: fanout
+    from: [webhooks]
+    to: [billing, analytics, archive]
+
+server:
+  admin: { listen: ":9090" }

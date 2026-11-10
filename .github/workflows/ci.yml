@@ -1,0 +1,358 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Each module is tested independently against its own go.mod (no workspace),
+  # as the Makefile does.
+  GOWORK: off
+
+# Actions are pinned by commit SHA (the comment names the release); Dependabot
+# moves both. The Go version comes from go.work.
+jobs:
+  discover:
+    name: Discover modules
+    runs-on: ubuntu-latest
+    outputs:
+      dirs: ${{ steps.set.outputs.dirs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: set
+        name: Find all Go modules
+        # The same find as check_dependabot_coverage.py (and the Makefile).
+        run: |
+          dirs=$(find . -name go.mod -not -path './site/*' -not -path './**/testdata/*' \
+            -exec dirname {} \; | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "Modules: $dirs"
+
+  # make vet and make test, one module per job, with the race detector and
+  # coverage on.
+  test:
+    name: test ${{ matrix.dir }}
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.dirs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: ${{ matrix.dir }}/go.sum
+      - name: go build
+        working-directory: ${{ matrix.dir }}
+        run: go build ./...
+      - name: go vet
+        working-directory: ${{ matrix.dir }}
+        run: go vet ./...
+      # Integration tests carry a //go:build integration tag, so no default
+      # build compiles them. Type-checking them costs nothing and keeps a
+      # refactor from quietly orphaning them.
+      - name: go vet (integration build tag)
+        working-directory: ${{ matrix.dir }}
+        run: go vet -tags integration ./...
+      - name: go test (race, coverage)
+        working-directory: ${{ matrix.dir }}
+        run: go test -race -count=1 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
+          {
+            echo "### Coverage: \`$DIR\`"
+            echo
+            echo "**$total** of statements"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Total coverage for $DIR: $total"
+      - name: Name the coverage artifact
+        id: slug
+        env:
+          DIR: ${{ matrix.dir }}
+        run: echo "v=$(echo "$DIR" | sed 's|^\./||; s|/|-|g; s|^\.$|core|')" >> "$GITHUB_OUTPUT"
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ steps.slug.outputs.v }}
+          path: ${{ matrix.dir }}/coverage.out
+          retention-days: 14
+
+  # make lint and make lint-integration, one module per job.
+  lint:
+    name: lint ${{ matrix.dir }}
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.dirs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: ${{ matrix.dir }}/go.sum
+      - name: golangci-lint
+        # The version is pinned for reproducibility (.golangci.yml names this
+        # file as the place to keep it); the timeout lives in .golangci.yml
+        # (run.timeout).
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          working-directory: ${{ matrix.dir }}
+      - name: golangci-lint (integration build tag)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          working-directory: ${{ matrix.dir }}
+          args: --build-tags integration
+
+  gofmt:
+    name: gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+      - name: Check formatting
+        run: make fmt
+
+  checks:
+    name: Dependency, AI and claim checks
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.x"
+      - run: pip install --disable-pip-version-check pyyaml
+      - name: The root module has no heavy SDK; only llm/ talks to model providers
+        run: make check-deps
+      - name: README, CONTRIBUTING and docs match the CLI and make no unshipped claims
+        run: make check-claims
+      # dependabot.yml is hand-maintained while the matrix above is discovered,
+      # so the two drift apart silently and a new module never gets a dependency
+      # update. Fail instead.
+      - name: Every Go module has a dependabot entry
+        env:
+          DIRS: ${{ needs.discover.outputs.dirs }}
+        run: python3 .github/scripts/check_dependabot_coverage.py "$DIRS"
+
+  schema:
+    name: JSON Schema is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+      - run: make schema-check
+
+  # The end-to-end suites with the fake model provider (no network, no keys).
+  # They build only with -tags llmfake, so no default build contains the fake.
+  llmfake:
+    name: test -tags llmfake
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - run: make test-llmfake
+
+  smoke:
+    name: Build the CLI (full and lite) and run init + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: cmd/hikyaku/go.sum
+      # The two builds the release ships: the full one, and -tags lite.
+      - name: Build
+        working-directory: cmd/hikyaku
+        run: |
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/hikyaku" .
+          CGO_ENABLED=0 go build -tags lite -o "$RUNNER_TEMP/hikyaku-lite" .
+      - name: hikyaku version, init, validate
+        run: |
+          set -x
+          "$RUNNER_TEMP/hikyaku" version
+          "$RUNNER_TEMP/hikyaku-lite" version
+          d=$(mktemp -d)
+          cd "$d"
+          "$RUNNER_TEMP/hikyaku" init
+          "$RUNNER_TEMP/hikyaku" validate -f hikyaku.yaml
+          "$RUNNER_TEMP/hikyaku-lite" validate -f hikyaku.yaml
+
+  # The examples end to end with the fake model provider (scripts/integration.sh),
+  # so CI needs no API keys.
+  integration:
+    name: Integration (examples, llmfake)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - run: make integration
+
+  # The container suites: every package with a //go:build integration test
+  # file, run under -tags integration against the containers testcontainers
+  # starts on the runner's Docker (Redis, Redpanda, NATS, mosquitto,
+  # RabbitMQ, LocalStack, the Pub/Sub emulator, ...). One job per module, so
+  # the slow suites run side by side. Suites that need a model key or the
+  # multi-GB Azure emulators skip themselves without their env.
+  # make lint-integration runs in the lint job above.
+  integration-containers:
+    name: Integration (${{ matrix.dir }})
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.dirs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: ${{ matrix.dir }}/go.sum
+      - name: go test -tags integration
+        working-directory: ${{ matrix.dir }}
+        run: |
+          # The module's own packages (go list stops at nested modules) with
+          # a test file that only -tags integration builds.
+          pkgs=()
+          while read -r pkg pkgdir; do
+            if grep -qsE '^//go:build .*\bintegration\b' "$pkgdir"/*_test.go; then pkgs+=("$pkg"); fi
+          done < <(go list -f '{{.ImportPath}} {{.Dir}}' ./...)
+          if [ ${#pkgs[@]} -eq 0 ]; then
+            echo "No container suite in ${{ matrix.dir }}."
+            exit 0
+          fi
+          echo "==> go test -tags integration: ${pkgs[*]}"
+          go test -tags integration -count=1 -timeout 25m "${pkgs[@]}"
+
+  chaos-e2e:
+    name: Resilience suite (chaos-e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - run: make chaos-e2e
+
+  # make release-check: internal/tools/release cuts a throwaway version of this
+  # commit in a scratch clone, and go install (full and lite) and a custom
+  # build install it from outside the repository. A change that would break
+  # `go install` (a new replace, say) fails here instead of at release time.
+  release-check:
+    name: Go module release (release-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the scratch clone and the go command fetch from it
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - run: make release-check
+
+  # govulncheck is call-graph aware, so an advisory in a module we require but
+  # never call does not fail the build. make vuln loops every module so a
+  # single log shows the whole picture.
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      # The script skips the IDs in .github/govulncheck-ignore (risks handled
+      # in hikyaku's code, each with its reason) and prints them.
+      - name: Scan every module
+        run: GOVULNCHECK="$(go env GOPATH)/bin/govulncheck" make vuln
+
+  # make site-build and make site-linkcheck, with the Node version Astro needs
+  # instead of nvm.
+  docs:
+    name: Docs build & link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24 # Astro 7 needs Node 22.23.4+; the runner image lags, so use the current LTS line
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install dependencies
+        working-directory: site
+        run: npm ci || npm install
+      # The prebuild script copies schema/hikyaku.schema.json into public/schema/.
+      - name: Build the docs site
+        working-directory: site
+        run: npm run build
+      - name: The site serves the current JSON Schema
+        run: cmp schema/hikyaku.schema.json site/dist/schema/hikyaku.schema.json
+      - name: Check for broken internal links
+        working-directory: site
+        run: npm run linkcheck

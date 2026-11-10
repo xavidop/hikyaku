@@ -1,0 +1,18 @@
+# Categories of GitHub's generated release notes (the "Generate release notes"
+# button, and the release API's generate_release_notes), filled from merged pull
+# requests by label. The release workflow's own notes come from GoReleaser's
+# changelog in .goreleaser.yaml.
+changelog:
+  exclude:
+    labels: [dependencies, skip-changelog]
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: New
+      labels: [feat, feature, protocol]
+    - title: Fixes
+      labels: [fix, bug]
+    - title: Docs
+      labels: [docs, documentation]
+    - title: Other
+      labels: ["*"]

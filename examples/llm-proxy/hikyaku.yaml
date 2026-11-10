@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# An OpenAI-compatible LLM proxy. Clients ask for "fast", "smart" or "auto";
+# rules pick fast or smart, and "auto" lets a System One decision model pick
+# by how hard the request is. Every model falls back to another provider,
+# and the local Ollama model is the last resort.
+version: 1
+name: llm-proxy
+
+secrets:
+  PROXY_KEY: env:PROXY_KEY
+  GEMINI_API_KEY: env:GEMINI_API_KEY
+  ANTHROPIC_API_KEY: env:ANTHROPIC_API_KEY
+  TYPESAFE_API_KEY: env:TYPESAFE_API_KEY
+
+genkit:
+  plugins: [systemone, googlegenai, anthropic, ollama]
+
+sources:
+  - name: api
+    type: openai
+    listen: ":8080"
+    models: [auto, fast, smart]
+    auth: { bearer: { tokens: ["{{secrets.PROXY_KEY}}"] } }
+
+defaults:
+  timeout: 60s
+  retry: { attempts: 2, backoff: 500ms }
+
+destinations:
+  - { name: fast, type: model, model: googleai/gemini-2.5-flash, fallback: [local] }
+  - { name: smart, type: model, model: anthropic/claude-sonnet-4-5, fallback: [fast] }
+  - { name: local, type: model, model: ollama/llama3.2, timeout: 120s }
+
+routes:
+  - name: chat
+    from: [api]
+    router:
+      type: rules
+      rules:
+        - { when: 'msg.json.model == "fast"', to: [fast] }
+        - { when: 'msg.json.model == "smart"', to: [smart] }
+      fallback:
+        - type: ai
+          when: msg.json.model == "auto" # only "auto" pays for a decision; any other name goes to fast
+          engine: decision
+          model: typesafe/jev-1.13.0
+          fallback_models: [ollama-decisions/clef]
+          instructions: Pick the model for this chat request.
+          state: "{{ .json.messages }}"
+          candidates:
+            - { name: fast, description: "A short or simple request: a lookup, a rewrite, small talk." }
+            - { name: smart, description: "A hard request: multi-step reasoning, code, analysis." }
+          min_confidence: 0.6
+          on_low_confidence: [smart]
+          fallback:
+            - { type: static, to: [fast] }
+
+server:
+  admin: { listen: ":9090" }

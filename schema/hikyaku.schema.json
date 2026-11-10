@@ -1,0 +1,2986 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json",
+  "$defs": {
+    "AIBudget": {
+      "properties": {
+        "max_calls_per_minute": {
+          "type": "integer",
+          "description": "Model calls per minute."
+        },
+        "max_tokens_per_hour": {
+          "type": "integer",
+          "description": "Model tokens per hour."
+        },
+        "store": {
+          "type": "string",
+          "description": "Store that shares the counters across replicas (default: in-process)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AIInput": {
+      "properties": {
+        "max_bytes": {
+          "$ref": "#/$defs/Size",
+          "description": "Cap on the whole state, history included (default 8KiB): oldest turns go first."
+        },
+        "redact": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "JSONPaths removed from a JSON state, such as $.card.number."
+        },
+        "headers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Headers included in the state (allowlist)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "APIKeyAuth": {
+      "properties": {
+        "header": {
+          "type": "string",
+          "description": "Header (default X-API-Key)."
+        },
+        "query": {
+          "type": "string",
+          "description": "A query parameter that may carry the key when the header is absent, for clients that cannot set headers (a browser's EventSource or WebSocket). URLs end up in proxy logs: prefer the header when the client can send one."
+        },
+        "keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Accepted keys."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "keys"
+      ]
+    },
+    "AWS": {
+      "properties": {
+        "region": {
+          "type": "string",
+          "description": "Region (default the SDK's: AWS_REGION, the profile)."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Custom endpoint URL, such as LocalStack's http://localhost:4566."
+        },
+        "access_key_id": {
+          "type": "string",
+          "description": "Static credentials (with secret_access_key); use {{secrets.X}}."
+        },
+        "secret_access_key": {
+          "type": "string",
+          "description": "Static credentials; use {{secrets.X}}."
+        },
+        "session_token": {
+          "type": "string",
+          "description": "Session token of temporary static credentials."
+        },
+        "profile": {
+          "type": "string",
+          "description": "Shared config profile."
+        },
+        "role_arn": {
+          "type": "string",
+          "description": "Role assumed (STS) on top of the base credentials."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Admin": {
+      "properties": {
+        "listen": {
+          "type": "string",
+          "description": "Address (default :9090)."
+        },
+        "token": {
+          "type": "string",
+          "description": "Bearer token for mutating and history endpoints; without one they answer loopback only."
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Do not serve the admin API."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Auth": {
+      "properties": {
+        "hmac": {
+          "$ref": "#/$defs/HMACAuth",
+          "description": "Verify an HMAC signature of the body."
+        },
+        "bearer": {
+          "$ref": "#/$defs/BearerAuth",
+          "description": "Require a bearer token."
+        },
+        "jwt": {
+          "$ref": "#/$defs/JWTAuth",
+          "description": "Verify a JWT against a JWKS."
+        },
+        "api_key": {
+          "$ref": "#/$defs/APIKeyAuth",
+          "description": "Require an API key header."
+        },
+        "ip_allow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Allowed client IPs or CIDRs."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Azure": {
+      "properties": {
+        "connection_string": {
+          "type": "string",
+          "description": "Connection string (Endpoint=sb://...;SharedAccessKeyName=...;SharedAccessKey=...); use {{secrets.X}}."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Fully qualified namespace (\u003cname\u003e.servicebus.windows.net), with Microsoft Entra credentials."
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Client secret credentials: tenant (default: the SDK's DefaultAzureCredential)."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "Client secret credentials: application (client) ID."
+        },
+        "client_secret": {
+          "type": "string",
+          "description": "Client secret credentials: secret; use {{secrets.X}}."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Batch": {
+      "properties": {
+        "max_messages": {
+          "type": "integer",
+          "description": "Messages per batch (default 100)."
+        },
+        "max_bytes": {
+          "$ref": "#/$defs/Size",
+          "description": "Body bytes per batch (default 1MiB)."
+        },
+        "max_wait": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long a batch waits to fill after its first message (default 1s)."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "ndjson",
+            "json_array"
+          ],
+          "description": "Body of a batch for protocols without native batches (http, ws, file, ...): ndjson (default), one body per line, or json_array of the bodies."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BearerAuth": {
+      "properties": {
+        "tokens": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Accepted tokens."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "tokens"
+      ]
+    },
+    "Buffer": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ],
+          "description": "memory (default) or disk: a bbolt write-ahead log, so queued messages survive a crash or restart and are delivered when the relay starts again."
+        },
+        "size": {
+          "type": "integer",
+          "description": "Queued messages (default 10000); listen sources answer 503 when full."
+        },
+        "path": {
+          "type": "string",
+          "description": "disk: the write-ahead log file (required with disk; one relay per file)."
+        },
+        "sync": {
+          "type": "boolean",
+          "description": "disk: fsync every write before the message counts as queued (default true). false is faster but a host crash (not a process crash) can lose the last writes."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Cache": {
+      "properties": {
+        "store": {
+          "type": "string",
+          "description": "Shared store; default an in-process LRU."
+        },
+        "key": {
+          "type": "string",
+          "description": "Per-message template of the cache key (default: a hash of the state)."
+        },
+        "ttl": {
+          "$ref": "#/$defs/Duration",
+          "description": "Default 10m."
+        },
+        "size": {
+          "type": "integer",
+          "description": "LRU entries (default 10000)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Candidate": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A declared destination."
+        },
+        "description": {
+          "type": "string",
+          "description": "What it is for: the option's criteria."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "description"
+      ]
+    },
+    "CircuitBreaker": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Default true."
+        },
+        "failure_ratio": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "Open when failures/requests in the window reach this (default 0.5)."
+        },
+        "min_requests": {
+          "type": "integer",
+          "description": "Requests in the window before the ratio counts (default 20)."
+        },
+        "open_for": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long the breaker stays open (default 30s)."
+        },
+        "half_open_max": {
+          "type": "integer",
+          "description": "Trial requests while half-open (default 5)."
+        },
+        "window": {
+          "$ref": "#/$defs/Duration",
+          "description": "Rolling window of the failure ratio (default 60s)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Cluster": {
+      "properties": {
+        "addrs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Seed node addresses."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "addrs"
+      ]
+    },
+    "DeadLetter": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Protocol: http, https, ws, wss, sse, stdout, stderr, file, fault, group, grpc, tcp, udp, kafka, nats, jetstream, mqtt, amqp, redis, sqs, sns, eventbridge, s3, pubsub, gcs, servicebus, eventhubs, model, or a plugin's type."
+        },
+        "url": {
+          "type": "string",
+          "description": "http/ws: target URL, which may contain per-message templates (hosts are checked against egress). grpc: grpc://host:port or grpcs://; tcp: tcp://host:port or tls://; udp: udp://host:port or dtls://; nats, mqtt, amqp, redis: the server URL."
+        },
+        "method": {
+          "type": "string",
+          "description": "http: method (default POST); grpc: full method name, /package.Service/Method."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Headers set on every request; values may be per-message templates."
+        },
+        "body": {
+          "type": "string",
+          "description": "Per-message template of the outgoing body (default: the message body)."
+        },
+        "tls": {
+          "$ref": "#/$defs/TLS",
+          "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
+        },
+        "path": {
+          "type": "string",
+          "description": "file: the file appended to; sse: the stream path (default /)."
+        },
+        "listen": {
+          "type": "string",
+          "description": "sse: address the event stream is served on."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "envelope",
+            "body"
+          ],
+          "description": "file/stdout/stderr: write each message as an envelope line (default) or its body."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "text",
+            "binary",
+            "newline",
+            "length",
+            "raw"
+          ],
+          "description": "ws: frame type, text (default) or binary. tcp, udp: framing, newline (default), length (a length_bytes big-endian prefix) or raw."
+        },
+        "event": {
+          "type": "string",
+          "description": "sse: per-message template of the event name."
+        },
+        "replay": {
+          "type": "integer",
+          "description": "sse: events kept for Last-Event-ID resume (default 1000)."
+        },
+        "auth": {
+          "$ref": "#/$defs/Auth",
+          "description": "sse: authentication of the clients that read the stream: bearer, api_key, jwt, ip_allow (401 on failure; hmac does not apply)."
+        },
+        "fault": {
+          "$ref": "#/$defs/Fault",
+          "description": "fault: the faults injected (local testing and the resilience suite)."
+        },
+        "brokers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "kafka: bootstrap brokers (host:port)."
+        },
+        "topic": {
+          "type": "string",
+          "description": "Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic."
+        },
+        "key": {
+          "type": "string",
+          "description": "Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default \u003crelay\u003e/\u003cdate\u003e/\u003cid\u003e.json, or .ndjson for a batch)."
+        },
+        "sasl": {
+          "$ref": "#/$defs/SASL",
+          "description": "kafka: SASL authentication."
+        },
+        "username": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: user name."
+        },
+        "password": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+        },
+        "token": {
+          "type": "string",
+          "description": "nats: authentication token; use {{secrets.X}}."
+        },
+        "creds_file": {
+          "type": "string",
+          "description": "nats: a .creds file (JWT and NKey seed)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+        },
+        "acks": {
+          "type": "string",
+          "enum": [
+            "all",
+            "leader",
+            "none"
+          ],
+          "description": "kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."
+        },
+        "compression": {
+          "type": "string",
+          "enum": [
+            "none",
+            "gzip",
+            "snappy",
+            "lz4",
+            "zstd"
+          ],
+          "description": "kafka: batch compression (default none)."
+        },
+        "qos": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "description": "mqtt: publish QoS (default 1)."
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "mqtt: publish retained messages."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "mqtt: client identifier; kafka: client.id. Default hikyaku-\u003crelay\u003e-\u003cdestination\u003e."
+        },
+        "protocol_version": {
+          "type": "string",
+          "enum": [
+            "3.1.1",
+            "5"
+          ],
+          "description": "mqtt: protocol version (default 5)."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "amqp: exchange published to (default the default exchange, which routes by queue name)."
+        },
+        "routing_key": {
+          "type": "string",
+          "description": "amqp: per-message template of the routing key."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "amqp: persistent delivery mode (default true)."
+        },
+        "mandatory": {
+          "type": "boolean",
+          "description": "amqp: fail a message no queue is bound to receive (a permanent error) instead of dropping it."
+        },
+        "declare": {
+          "type": "boolean",
+          "description": "amqp: declare the exchange (topic, durable) when missing."
+        },
+        "stream": {
+          "type": "string",
+          "description": "redis: stream key appended to (XADD); jetstream: the stream a publish must land in (an expected-stream check)."
+        },
+        "channel": {
+          "type": "string",
+          "description": "redis: pub/sub channel published to; a per-message template."
+        },
+        "max_len": {
+          "type": "integer",
+          "description": "redis streams: approximate length the stream is trimmed to (MAXLEN ~)."
+        },
+        "descriptor_set": {
+          "type": "string",
+          "description": "grpc: a FileDescriptorSet file describing method's service."
+        },
+        "reflection": {
+          "type": "boolean",
+          "description": "grpc: resolve method through server reflection when there is no descriptor_set (default true)."
+        },
+        "length_bytes": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "description": "tcp, udp: size of the length prefix with frame: length (default 4)."
+        },
+        "queue_url": {
+          "type": "string",
+          "description": "sqs: the queue URL."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "Per-message template of the ordering group. sqs, sns FIFO: message group ID; servicebus: session ID."
+        },
+        "delay": {
+          "$ref": "#/$defs/Duration",
+          "description": "sqs: delivery delay (at most 15m)."
+        },
+        "event_bus": {
+          "type": "string",
+          "description": "eventbridge: event bus name or ARN (default the account's default bus)."
+        },
+        "event_source": {
+          "type": "string",
+          "description": "eventbridge: the events' source field (default hikyaku.\u003crelay\u003e)."
+        },
+        "detail_type": {
+          "type": "string",
+          "description": "eventbridge: per-message template of the detail-type (default the message subject, else hikyaku.message)."
+        },
+        "bucket": {
+          "type": "string",
+          "description": "s3, gcs: the bucket written to."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "s3, gcs: the objects' content type (default the message's)."
+        },
+        "queue": {
+          "type": "string",
+          "description": "servicebus: the queue (or topic)."
+        },
+        "aws": {
+          "$ref": "#/$defs/AWS",
+          "description": "sqs, sns, eventbridge, s3: AWS region and credentials (default the SDK's chain)."
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCP",
+          "description": "pubsub, gcs: project and credentials (default Application Default Credentials)."
+        },
+        "azure": {
+          "$ref": "#/$defs/Azure",
+          "description": "servicebus, eventhubs: connection string or namespace and credentials."
+        },
+        "model": {
+          "type": "string",
+          "description": "model: the Genkit model that answers, provider/name (googleai/gemini-2.5-flash, openai/gpt-4o-mini, openrouter/anthropic/claude-sonnet-4.5, ollama/llama3.2)."
+        },
+        "generation": {
+          "$ref": "#/$defs/Generation",
+          "description": "model: generation settings applied when the request does not set them."
+        },
+        "options": {
+          "type": "object",
+          "description": "Settings of a plugin type (a destination registered by a custom build); the plugin decodes and validates them."
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry",
+          "description": "Retries of a DLQ write (default attempts 3)."
+        },
+        "fallback": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Tried in order when the DLQ fails: destination names, or stdout / stderr. A message is acked only once some hop has it."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Dedupe": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Per-message template of the dedupe key, such as {{ .json.id }}."
+        },
+        "ttl": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long a key is remembered (default 1h)."
+        },
+        "store": {
+          "type": "string",
+          "description": "Store that shares keys across replicas (default store)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Destination": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique destination name."
+        },
+        "type": {
+          "type": "string",
+          "description": "Protocol: http, https, ws, wss, sse, stdout, stderr, file, fault, group, grpc, tcp, udp, kafka, nats, jetstream, mqtt, amqp, redis, sqs, sns, eventbridge, s3, pubsub, gcs, servicebus, eventhubs, model, or a plugin's type."
+        },
+        "url": {
+          "type": "string",
+          "description": "http/ws: target URL, which may contain per-message templates (hosts are checked against egress). grpc: grpc://host:port or grpcs://; tcp: tcp://host:port or tls://; udp: udp://host:port or dtls://; nats, mqtt, amqp, redis: the server URL."
+        },
+        "method": {
+          "type": "string",
+          "description": "http: method (default POST); grpc: full method name, /package.Service/Method."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Headers set on every request; values may be per-message templates."
+        },
+        "body": {
+          "type": "string",
+          "description": "Per-message template of the outgoing body (default: the message body)."
+        },
+        "tls": {
+          "$ref": "#/$defs/TLS",
+          "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
+        },
+        "path": {
+          "type": "string",
+          "description": "file: the file appended to; sse: the stream path (default /)."
+        },
+        "listen": {
+          "type": "string",
+          "description": "sse: address the event stream is served on."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "envelope",
+            "body"
+          ],
+          "description": "file/stdout/stderr: write each message as an envelope line (default) or its body."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "text",
+            "binary",
+            "newline",
+            "length",
+            "raw"
+          ],
+          "description": "ws: frame type, text (default) or binary. tcp, udp: framing, newline (default), length (a length_bytes big-endian prefix) or raw."
+        },
+        "event": {
+          "type": "string",
+          "description": "sse: per-message template of the event name."
+        },
+        "replay": {
+          "type": "integer",
+          "description": "sse: events kept for Last-Event-ID resume (default 1000)."
+        },
+        "auth": {
+          "$ref": "#/$defs/Auth",
+          "description": "sse: authentication of the clients that read the stream: bearer, api_key, jwt, ip_allow (401 on failure; hmac does not apply)."
+        },
+        "fault": {
+          "$ref": "#/$defs/Fault",
+          "description": "fault: the faults injected (local testing and the resilience suite)."
+        },
+        "brokers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "kafka: bootstrap brokers (host:port)."
+        },
+        "topic": {
+          "type": "string",
+          "description": "Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic."
+        },
+        "key": {
+          "type": "string",
+          "description": "Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default \u003crelay\u003e/\u003cdate\u003e/\u003cid\u003e.json, or .ndjson for a batch)."
+        },
+        "sasl": {
+          "$ref": "#/$defs/SASL",
+          "description": "kafka: SASL authentication."
+        },
+        "username": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: user name."
+        },
+        "password": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+        },
+        "token": {
+          "type": "string",
+          "description": "nats: authentication token; use {{secrets.X}}."
+        },
+        "creds_file": {
+          "type": "string",
+          "description": "nats: a .creds file (JWT and NKey seed)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+        },
+        "acks": {
+          "type": "string",
+          "enum": [
+            "all",
+            "leader",
+            "none"
+          ],
+          "description": "kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."
+        },
+        "compression": {
+          "type": "string",
+          "enum": [
+            "none",
+            "gzip",
+            "snappy",
+            "lz4",
+            "zstd"
+          ],
+          "description": "kafka: batch compression (default none)."
+        },
+        "qos": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "description": "mqtt: publish QoS (default 1)."
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "mqtt: publish retained messages."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "mqtt: client identifier; kafka: client.id. Default hikyaku-\u003crelay\u003e-\u003cdestination\u003e."
+        },
+        "protocol_version": {
+          "type": "string",
+          "enum": [
+            "3.1.1",
+            "5"
+          ],
+          "description": "mqtt: protocol version (default 5)."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "amqp: exchange published to (default the default exchange, which routes by queue name)."
+        },
+        "routing_key": {
+          "type": "string",
+          "description": "amqp: per-message template of the routing key."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "amqp: persistent delivery mode (default true)."
+        },
+        "mandatory": {
+          "type": "boolean",
+          "description": "amqp: fail a message no queue is bound to receive (a permanent error) instead of dropping it."
+        },
+        "declare": {
+          "type": "boolean",
+          "description": "amqp: declare the exchange (topic, durable) when missing."
+        },
+        "stream": {
+          "type": "string",
+          "description": "redis: stream key appended to (XADD); jetstream: the stream a publish must land in (an expected-stream check)."
+        },
+        "channel": {
+          "type": "string",
+          "description": "redis: pub/sub channel published to; a per-message template."
+        },
+        "max_len": {
+          "type": "integer",
+          "description": "redis streams: approximate length the stream is trimmed to (MAXLEN ~)."
+        },
+        "descriptor_set": {
+          "type": "string",
+          "description": "grpc: a FileDescriptorSet file describing method's service."
+        },
+        "reflection": {
+          "type": "boolean",
+          "description": "grpc: resolve method through server reflection when there is no descriptor_set (default true)."
+        },
+        "length_bytes": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "description": "tcp, udp: size of the length prefix with frame: length (default 4)."
+        },
+        "queue_url": {
+          "type": "string",
+          "description": "sqs: the queue URL."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "Per-message template of the ordering group. sqs, sns FIFO: message group ID; servicebus: session ID."
+        },
+        "delay": {
+          "$ref": "#/$defs/Duration",
+          "description": "sqs: delivery delay (at most 15m)."
+        },
+        "event_bus": {
+          "type": "string",
+          "description": "eventbridge: event bus name or ARN (default the account's default bus)."
+        },
+        "event_source": {
+          "type": "string",
+          "description": "eventbridge: the events' source field (default hikyaku.\u003crelay\u003e)."
+        },
+        "detail_type": {
+          "type": "string",
+          "description": "eventbridge: per-message template of the detail-type (default the message subject, else hikyaku.message)."
+        },
+        "bucket": {
+          "type": "string",
+          "description": "s3, gcs: the bucket written to."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "s3, gcs: the objects' content type (default the message's)."
+        },
+        "queue": {
+          "type": "string",
+          "description": "servicebus: the queue (or topic)."
+        },
+        "aws": {
+          "$ref": "#/$defs/AWS",
+          "description": "sqs, sns, eventbridge, s3: AWS region and credentials (default the SDK's chain)."
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCP",
+          "description": "pubsub, gcs: project and credentials (default Application Default Credentials)."
+        },
+        "azure": {
+          "$ref": "#/$defs/Azure",
+          "description": "servicebus, eventhubs: connection string or namespace and credentials."
+        },
+        "model": {
+          "type": "string",
+          "description": "model: the Genkit model that answers, provider/name (googleai/gemini-2.5-flash, openai/gpt-4o-mini, openrouter/anthropic/claude-sonnet-4.5, ollama/llama3.2)."
+        },
+        "generation": {
+          "$ref": "#/$defs/Generation",
+          "description": "model: generation settings applied when the request does not set them."
+        },
+        "options": {
+          "type": "object",
+          "description": "Settings of a plugin type (a destination registered by a custom build); the plugin decodes and validates them."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "Per-attempt timeout (default 5s)."
+        },
+        "deadline": {
+          "$ref": "#/$defs/Duration",
+          "description": "Overall budget across attempts and fallbacks (default none)."
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry",
+          "description": "Retry policy per endpoint."
+        },
+        "circuit_breaker": {
+          "$ref": "#/$defs/CircuitBreaker",
+          "description": "Circuit breaker per endpoint."
+        },
+        "retry_budget": {
+          "$ref": "#/$defs/RetryBudget",
+          "description": "Caps retries as a fraction of traffic."
+        },
+        "fallback": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Destinations tried in order after this one exhausts its retries, fails permanently, has its breaker open, its budget spent or its deadline hit."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "A required destination (default) must succeed, on its primary or a fallback, before the message is acked; a failure goes to the DLQ. A best-effort one is counted and logged."
+        },
+        "idempotent": {
+          "type": "boolean",
+          "description": "The endpoint dedupes by idempotency key; required for hedging."
+        },
+        "idempotency_header": {
+          "type": "string",
+          "description": "Header carrying the idempotency key (default Idempotency-Key)."
+        },
+        "transforms": {
+          "items": {
+            "$ref": "#/$defs/Transform"
+          },
+          "type": "array",
+          "description": "Transforms applied before delivering here."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "failover",
+            "round_robin",
+            "weighted",
+            "least_latency"
+          ],
+          "description": "group: how members are picked (default failover)."
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/Member"
+          },
+          "type": "array",
+          "description": "group: the endpoints."
+        },
+        "health_check": {
+          "$ref": "#/$defs/HealthCheck",
+          "description": "group: active health checks; unhealthy members are skipped until they recover."
+        },
+        "hedge": {
+          "$ref": "#/$defs/Hedge",
+          "description": "group: race another member when the first is slow (idempotent destinations only)."
+        },
+        "batch": {
+          "$ref": "#/$defs/Batch",
+          "description": "Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "Duration": {
+      "type": "string",
+      "pattern": "^(\\d+(\\.\\d+)?d)?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))*$",
+      "description": "A duration: 500ms, 30s, 5m, 1h, 7d."
+    },
+    "Egress": {
+      "properties": {
+        "allow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Hosts (exact, or *.suffix) and CIDRs a templated URL may reach."
+        },
+        "allow_private": {
+          "type": "boolean",
+          "description": "Let templated URLs reach private, loopback and link-local addresses."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Fault": {
+      "properties": {
+        "fail": {
+          "$ref": "#/$defs/Percent",
+          "description": "Share of attempts that fail, such as 50%."
+        },
+        "fail_first": {
+          "type": "integer",
+          "description": "Fail the first N attempts, then follow fail."
+        },
+        "latency": {
+          "$ref": "#/$defs/Duration",
+          "description": "Added to every attempt."
+        },
+        "error": {
+          "type": "string",
+          "enum": [
+            "status",
+            "connect",
+            "timeout"
+          ],
+          "description": "How an attempt fails (default status)."
+        },
+        "status": {
+          "type": "integer",
+          "description": "Status of a failed attempt (default 503)."
+        },
+        "retry_after": {
+          "$ref": "#/$defs/Duration",
+          "description": "Retry-After hint of a failed attempt."
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Random seed, for repeatable runs."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GCP": {
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project ID (pubsub: required)."
+        },
+        "credentials_file": {
+          "type": "string",
+          "description": "Service account key file (default Application Default Credentials)."
+        },
+        "credentials_json": {
+          "type": "string",
+          "description": "Service account key JSON; use {{secrets.X}}."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Custom endpoint, such as an emulator's localhost:8085 (pubsub) or http://localhost:4443/storage/v1/ (gcs)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Generation": {
+      "properties": {
+        "temperature": {
+          "type": "number",
+          "description": "Sampling temperature."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "Maximum output tokens."
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus sampling probability mass."
+        },
+        "system": {
+          "type": "string",
+          "description": "System prompt prepended when the request has none."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Genkit": {
+      "properties": {
+        "plugins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Plugins to initialize: systemone, googlegenai, anthropic, openai, openrouter, ollama, llmfake (test builds). Plugins named by a model's provider prefix are added automatically."
+        },
+        "systemone": {
+          "$ref": "#/$defs/SystemOne",
+          "description": "System One decision-model servers."
+        },
+        "ollama": {
+          "$ref": "#/$defs/Ollama",
+          "description": "The Ollama server of the ollama plugin and the ollama decision server."
+        },
+        "openai": {
+          "$ref": "#/$defs/OpenAI",
+          "description": "The server of the openai plugin."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HMACAuth": {
+      "properties": {
+        "header": {
+          "type": "string",
+          "description": "Signature header, such as X-Signature-256."
+        },
+        "algo": {
+          "type": "string",
+          "enum": [
+            "sha256",
+            "sha1",
+            "sha512"
+          ],
+          "description": "Hash (default sha256)."
+        },
+        "secret": {
+          "type": "string",
+          "description": "Shared secret, usually {{secrets.NAME}}."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix before the digest, such as sha256= (stripped if present)."
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "hex",
+            "base64"
+          ],
+          "description": "Digest encoding (default hex)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "header",
+        "secret"
+      ]
+    },
+    "HeaderOps": {
+      "properties": {
+        "set": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Replace."
+        },
+        "add": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Append."
+        },
+        "remove": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Delete."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HealthCheck": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "http members: path probed with GET on the member's origin (default: the sink's own health check)."
+        },
+        "interval": {
+          "$ref": "#/$defs/Duration",
+          "description": "Default 10s."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "Default 2s."
+        },
+        "unhealthy_after": {
+          "type": "integer",
+          "description": "Failed probes in a row before a member is skipped (default 3)."
+        },
+        "healthy_after": {
+          "type": "integer",
+          "description": "Passed probes in a row before it is used again (default 1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Hedge": {
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Duration",
+          "description": "Start another member when no answer came in this long."
+        },
+        "max": {
+          "type": "integer",
+          "description": "Extra members raced at most (default 1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "after"
+      ]
+    },
+    "History": {
+      "properties": {
+        "store": {
+          "type": "string",
+          "description": "Store of the history (default store)."
+        },
+        "key": {
+          "type": "string",
+          "description": "Per-message template of whose history: customer, conversation, session, device."
+        },
+        "window": {
+          "$ref": "#/$defs/Window",
+          "description": "What is sent to the model."
+        },
+        "ttl": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long records are kept. Mandatory."
+        },
+        "record": {
+          "$ref": "#/$defs/HistoryRecord",
+          "description": "What is stored."
+        },
+        "sticky": {
+          "$ref": "#/$defs/Sticky",
+          "description": "Send follow-ups where the previous call went."
+        },
+        "on_store_error": {
+          "type": "string",
+          "enum": [
+            "ignore",
+            "fallback"
+          ],
+          "description": "ignore (default): route without history; fallback: use router.fallback."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "ttl"
+      ]
+    },
+    "HistoryRecord": {
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "redacted",
+            "summary",
+            "none"
+          ],
+          "description": "redacted (default): the redacted state; summary: the summary template; none: only decision and outcome."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Per-message template of the summary, such as {{ .json.type }} / {{ .json.subject }}."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "JWTAuth": {
+      "properties": {
+        "jwks_url": {
+          "type": "string",
+          "description": "JWKS endpoint."
+        },
+        "issuer": {
+          "type": "string",
+          "description": "Required iss."
+        },
+        "audience": {
+          "type": "string",
+          "description": "Required aud."
+        },
+        "algorithms": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Accepted algorithms (default RS256, ES256)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jwks_url"
+      ]
+    },
+    "Logs": {
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "description": "Default info."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "json",
+            "text"
+          ],
+          "description": "Default text on a terminal, json otherwise."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Member": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Member name (default \u003cgroup\u003e[\u003cindex\u003e])."
+        },
+        "weight": {
+          "type": "integer",
+          "description": "weighted: relative share (default 1)."
+        },
+        "type": {
+          "type": "string",
+          "description": "Protocol: http, https, ws, wss, sse, stdout, stderr, file, fault, group, grpc, tcp, udp, kafka, nats, jetstream, mqtt, amqp, redis, sqs, sns, eventbridge, s3, pubsub, gcs, servicebus, eventhubs, model, or a plugin's type."
+        },
+        "url": {
+          "type": "string",
+          "description": "http/ws: target URL, which may contain per-message templates (hosts are checked against egress). grpc: grpc://host:port or grpcs://; tcp: tcp://host:port or tls://; udp: udp://host:port or dtls://; nats, mqtt, amqp, redis: the server URL."
+        },
+        "method": {
+          "type": "string",
+          "description": "http: method (default POST); grpc: full method name, /package.Service/Method."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Headers set on every request; values may be per-message templates."
+        },
+        "body": {
+          "type": "string",
+          "description": "Per-message template of the outgoing body (default: the message body)."
+        },
+        "tls": {
+          "$ref": "#/$defs/TLS",
+          "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
+        },
+        "path": {
+          "type": "string",
+          "description": "file: the file appended to; sse: the stream path (default /)."
+        },
+        "listen": {
+          "type": "string",
+          "description": "sse: address the event stream is served on."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "envelope",
+            "body"
+          ],
+          "description": "file/stdout/stderr: write each message as an envelope line (default) or its body."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "text",
+            "binary",
+            "newline",
+            "length",
+            "raw"
+          ],
+          "description": "ws: frame type, text (default) or binary. tcp, udp: framing, newline (default), length (a length_bytes big-endian prefix) or raw."
+        },
+        "event": {
+          "type": "string",
+          "description": "sse: per-message template of the event name."
+        },
+        "replay": {
+          "type": "integer",
+          "description": "sse: events kept for Last-Event-ID resume (default 1000)."
+        },
+        "auth": {
+          "$ref": "#/$defs/Auth",
+          "description": "sse: authentication of the clients that read the stream: bearer, api_key, jwt, ip_allow (401 on failure; hmac does not apply)."
+        },
+        "fault": {
+          "$ref": "#/$defs/Fault",
+          "description": "fault: the faults injected (local testing and the resilience suite)."
+        },
+        "brokers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "kafka: bootstrap brokers (host:port)."
+        },
+        "topic": {
+          "type": "string",
+          "description": "Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic."
+        },
+        "key": {
+          "type": "string",
+          "description": "Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default \u003crelay\u003e/\u003cdate\u003e/\u003cid\u003e.json, or .ndjson for a batch)."
+        },
+        "sasl": {
+          "$ref": "#/$defs/SASL",
+          "description": "kafka: SASL authentication."
+        },
+        "username": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: user name."
+        },
+        "password": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+        },
+        "token": {
+          "type": "string",
+          "description": "nats: authentication token; use {{secrets.X}}."
+        },
+        "creds_file": {
+          "type": "string",
+          "description": "nats: a .creds file (JWT and NKey seed)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+        },
+        "acks": {
+          "type": "string",
+          "enum": [
+            "all",
+            "leader",
+            "none"
+          ],
+          "description": "kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."
+        },
+        "compression": {
+          "type": "string",
+          "enum": [
+            "none",
+            "gzip",
+            "snappy",
+            "lz4",
+            "zstd"
+          ],
+          "description": "kafka: batch compression (default none)."
+        },
+        "qos": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "description": "mqtt: publish QoS (default 1)."
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "mqtt: publish retained messages."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "mqtt: client identifier; kafka: client.id. Default hikyaku-\u003crelay\u003e-\u003cdestination\u003e."
+        },
+        "protocol_version": {
+          "type": "string",
+          "enum": [
+            "3.1.1",
+            "5"
+          ],
+          "description": "mqtt: protocol version (default 5)."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "amqp: exchange published to (default the default exchange, which routes by queue name)."
+        },
+        "routing_key": {
+          "type": "string",
+          "description": "amqp: per-message template of the routing key."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "amqp: persistent delivery mode (default true)."
+        },
+        "mandatory": {
+          "type": "boolean",
+          "description": "amqp: fail a message no queue is bound to receive (a permanent error) instead of dropping it."
+        },
+        "declare": {
+          "type": "boolean",
+          "description": "amqp: declare the exchange (topic, durable) when missing."
+        },
+        "stream": {
+          "type": "string",
+          "description": "redis: stream key appended to (XADD); jetstream: the stream a publish must land in (an expected-stream check)."
+        },
+        "channel": {
+          "type": "string",
+          "description": "redis: pub/sub channel published to; a per-message template."
+        },
+        "max_len": {
+          "type": "integer",
+          "description": "redis streams: approximate length the stream is trimmed to (MAXLEN ~)."
+        },
+        "descriptor_set": {
+          "type": "string",
+          "description": "grpc: a FileDescriptorSet file describing method's service."
+        },
+        "reflection": {
+          "type": "boolean",
+          "description": "grpc: resolve method through server reflection when there is no descriptor_set (default true)."
+        },
+        "length_bytes": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "description": "tcp, udp: size of the length prefix with frame: length (default 4)."
+        },
+        "queue_url": {
+          "type": "string",
+          "description": "sqs: the queue URL."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "Per-message template of the ordering group. sqs, sns FIFO: message group ID; servicebus: session ID."
+        },
+        "delay": {
+          "$ref": "#/$defs/Duration",
+          "description": "sqs: delivery delay (at most 15m)."
+        },
+        "event_bus": {
+          "type": "string",
+          "description": "eventbridge: event bus name or ARN (default the account's default bus)."
+        },
+        "event_source": {
+          "type": "string",
+          "description": "eventbridge: the events' source field (default hikyaku.\u003crelay\u003e)."
+        },
+        "detail_type": {
+          "type": "string",
+          "description": "eventbridge: per-message template of the detail-type (default the message subject, else hikyaku.message)."
+        },
+        "bucket": {
+          "type": "string",
+          "description": "s3, gcs: the bucket written to."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "s3, gcs: the objects' content type (default the message's)."
+        },
+        "queue": {
+          "type": "string",
+          "description": "servicebus: the queue (or topic)."
+        },
+        "aws": {
+          "$ref": "#/$defs/AWS",
+          "description": "sqs, sns, eventbridge, s3: AWS region and credentials (default the SDK's chain)."
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCP",
+          "description": "pubsub, gcs: project and credentials (default Application Default Credentials)."
+        },
+        "azure": {
+          "$ref": "#/$defs/Azure",
+          "description": "servicebus, eventhubs: connection string or namespace and credentials."
+        },
+        "model": {
+          "type": "string",
+          "description": "model: the Genkit model that answers, provider/name (googleai/gemini-2.5-flash, openai/gpt-4o-mini, openrouter/anthropic/claude-sonnet-4.5, ollama/llama3.2)."
+        },
+        "generation": {
+          "$ref": "#/$defs/Generation",
+          "description": "model: generation settings applied when the request does not set them."
+        },
+        "options": {
+          "type": "object",
+          "description": "Settings of a plugin type (a destination registered by a custom build); the plugin decodes and validates them."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Metrics": {
+      "properties": {
+        "prometheus": {
+          "type": "boolean",
+          "description": "Serve /metrics (default true)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModelFallback": {
+      "properties": {
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Generative models tried after models.default."
+        },
+        "decision": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Decision models tried after models.decision."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModelRetry": {
+      "properties": {
+        "attempts": {
+          "type": "integer",
+          "description": "Tries per model (default 3). Each try may include the System One plugin's own two transport retries."
+        },
+        "backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "Wait before the second try (default 500ms), doubling per try."
+        },
+        "max_backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "Cap on the wait (default 10s)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Models": {
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "Default generative model, such as googleai/gemini-2.5-flash."
+        },
+        "decision": {
+          "type": "string",
+          "description": "Default decision model, such as typesafe/jev-1.13.0. Pin a version in production."
+        },
+        "retry": {
+          "$ref": "#/$defs/ModelRetry",
+          "description": "Tries per model before the next model of the chain."
+        },
+        "fallback": {
+          "$ref": "#/$defs/ModelFallback",
+          "description": "Global model fallback chains."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OTel": {
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "OTLP/HTTP endpoint; empty turns tracing off."
+        },
+        "insecure": {
+          "type": "boolean",
+          "description": "Plain HTTP to the collector."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Exporter headers."
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Default hikyaku."
+        },
+        "sample_ratio": {
+          "type": "number",
+          "description": "Share of traces kept (default 1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Observability": {
+      "properties": {
+        "logs": {
+          "$ref": "#/$defs/Logs",
+          "description": "Structured logs on stderr."
+        },
+        "otel": {
+          "$ref": "#/$defs/OTel",
+          "description": "OpenTelemetry traces over OTLP/HTTP."
+        },
+        "metrics": {
+          "$ref": "#/$defs/Metrics",
+          "description": "Prometheus metrics on the admin API."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Ollama": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Base URL (default http://localhost:11434)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OpenAI": {
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "Base URL of the OpenAI API (default https://api.openai.com/v1, else OPENAI_BASE_URL when set). Point it at any OpenAI-compatible server, such as vLLM, LM Studio, LiteLLM or a gateway; its models are openai/\u003cname\u003e. OPENAI_API_KEY is sent as a bearer token; a server other than the default may need none."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Ordering": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Template of the ordering key, such as {{ .json.customer_id }}. Empty: the source's natural order unit (kafka partition, mqtt topic, amqp queue, sqs message group, ...). A constant (\"all\") orders the whole source."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Percent": {
+      "oneOf": [
+        {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)?%$"
+        }
+      ],
+      "description": "A share: 50% or 0.5."
+    },
+    "PluginBinary": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Plugin name, used in logs and metrics."
+        },
+        "command": {
+          "type": "string",
+          "description": "The plugin binary: a path, relative to the spec file, or a name looked up on PATH."
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Arguments passed to the binary."
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Environment variables set for the plugin (values may use {{secrets.X}})."
+        },
+        "sha256": {
+          "type": "string",
+          "description": "Hex SHA-256 of the binary. When set, hikyaku refuses to start a binary that does not match."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "command"
+      ]
+    },
+    "Policy": {
+      "properties": {
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "Per-attempt timeout (default 5s)."
+        },
+        "deadline": {
+          "$ref": "#/$defs/Duration",
+          "description": "Overall budget across attempts and fallbacks (default none)."
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry",
+          "description": "Retry policy per endpoint."
+        },
+        "circuit_breaker": {
+          "$ref": "#/$defs/CircuitBreaker",
+          "description": "Circuit breaker per endpoint."
+        },
+        "retry_budget": {
+          "$ref": "#/$defs/RetryBudget",
+          "description": "Caps retries as a fraction of traffic."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Readiness": {
+      "properties": {
+        "destinations": {
+          "type": "boolean",
+          "description": "Not ready while a required destination can take nothing: every member of it, and of every fallback in its chain, is down (default true)."
+        },
+        "models": {
+          "type": "boolean",
+          "description": "Not ready while every model of an AI route's chain fails. A probe calls each model once; /readyz answers from the last probe and refreshes one older than 30s in the background."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Reconnect": {
+      "properties": {
+        "backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "First wait (default 500ms), doubling."
+        },
+        "max_backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "Cap (default 30s)."
+        },
+        "jitter": {
+          "type": "string",
+          "enum": [
+            "full",
+            "equal",
+            "none"
+          ],
+          "description": "Default full."
+        },
+        "max_attempts": {
+          "type": "integer",
+          "description": "Give up after this many failed connects in a row; 0 = forever."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Respond": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Destination whose reply is returned."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long the caller waits (default 30s); then 504."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from"
+      ]
+    },
+    "Retry": {
+      "properties": {
+        "attempts": {
+          "type": "integer",
+          "description": "Tries per endpoint; 1 means no retry (default 5)."
+        },
+        "backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "Base wait, doubled per try (default 200ms)."
+        },
+        "max_backoff": {
+          "$ref": "#/$defs/Duration",
+          "description": "Cap on the wait (default 10s)."
+        },
+        "jitter": {
+          "type": "string",
+          "enum": [
+            "full",
+            "equal",
+            "none"
+          ],
+          "description": "full (default): random in [0, wait]; equal: wait/2 + random half; none."
+        },
+        "retry_on": {
+          "$ref": "#/$defs/TagList",
+          "description": "Error tags retried (default connect, timeout, 5xx, 429): ranges (5xx), codes (503), classes (connect, timeout) and protocol codes (ws:close_1011)."
+        },
+        "never_on": {
+          "$ref": "#/$defs/TagList",
+          "description": "Error tags never retried (default 4xx). A more specific retry_on tag wins, so 429 and 408 still retry."
+        },
+        "respect_retry_after": {
+          "type": "boolean",
+          "description": "Wait what Retry-After (or a broker hint) says, capped by max_backoff (default true)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RetryBudget": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Default true."
+        },
+        "ratio": {
+          "type": "number",
+          "description": "Retries allowed per first attempt in the window (default 0.2)."
+        },
+        "min_per_second": {
+          "type": "number",
+          "description": "Retries always allowed per second (default 10)."
+        },
+        "store": {
+          "type": "string",
+          "description": "Store that shares the counters across replicas (default: in-process)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Route": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique route name."
+        },
+        "from": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Source names."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Shortcut for a static router."
+        },
+        "filter": {
+          "type": "string",
+          "description": "CEL expression over msg; false skips the route."
+        },
+        "transforms": {
+          "items": {
+            "$ref": "#/$defs/Transform"
+          },
+          "type": "array",
+          "description": "Transforms applied before routing."
+        },
+        "router": {
+          "$ref": "#/$defs/RouterSpec",
+          "description": "The router; default static over to:."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "from"
+      ]
+    },
+    "RouterSpec": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "static",
+            "rules",
+            "ai",
+            "sticky"
+          ],
+          "description": "static, rules (CEL), ai, or sticky (last destinations of the history key)."
+        },
+        "when": {
+          "type": "string",
+          "description": "CEL condition over msg: only the messages it is true for reach this router; the others skip it, with no call, and go to the next router of the fallback chain. On an ai router it keeps model spend to the messages that need a model, such as has(msg.json.text), msg.headers[\"X-Priority\"] == \"high\" or msg.json.tier == \"enterprise\". A condition that cannot be evaluated (a missing field) counts as false."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "static: destinations."
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "type": "array",
+          "description": "rules: evaluated in order."
+        },
+        "match": {
+          "type": "string",
+          "enum": [
+            "first",
+            "all"
+          ],
+          "description": "rules: first matching rule (default) or every match."
+        },
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "rules: destinations when no rule matches (else the router fails over)."
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "decision",
+            "generative"
+          ],
+          "description": "ai: decision (System One, default) or generative (GenerateData on any model)."
+        },
+        "model": {
+          "type": "string",
+          "description": "ai: model (default models.decision or models.default)."
+        },
+        "fallback_models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ai: overrides the global model fallback chain."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "ai: the system message, in front of every question."
+        },
+        "state": {
+          "type": "string",
+          "description": "ai: per-message template of what the model evaluates (default {{ .bodyText }})."
+        },
+        "state_json": {
+          "type": "boolean",
+          "description": "ai: the state is JSON (sent as an object)."
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "type": "array",
+          "description": "ai: the destinations the model may pick, each with what it is for."
+        },
+        "multi": {
+          "type": "boolean",
+          "description": "ai: true asks one yes/no per candidate (in one request) and delivers to every one above min_confidence; false asks one choice."
+        },
+        "min_confidence": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "ai: lowest probability accepted."
+        },
+        "min_margin": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "ai, single choice: top minus second must exceed this."
+        },
+        "input": {
+          "$ref": "#/$defs/AIInput",
+          "description": "ai: how the state is built."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "ai: budget of the whole AI step, model fallbacks included (default 10s)."
+        },
+        "cache": {
+          "$ref": "#/$defs/Cache",
+          "description": "ai: decision cache."
+        },
+        "history": {
+          "$ref": "#/$defs/History",
+          "description": "ai and sticky: route with past calls of a key."
+        },
+        "on_low_confidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ai: destinations when the model answered but was not sure."
+        },
+        "fallback_on_low_confidence": {
+          "type": "boolean",
+          "description": "ai: hand low-confidence answers to the router fallback instead of on_low_confidence."
+        },
+        "shadow": {
+          "type": "boolean",
+          "description": "ai: decide and log, but deliver through the fallback chain."
+        },
+        "budget": {
+          "$ref": "#/$defs/AIBudget",
+          "description": "ai: when exceeded, the route goes straight to the router fallback."
+        },
+        "fallback": {
+          "items": {
+            "$ref": "#/$defs/RouterSpec"
+          },
+          "type": "array",
+          "description": "Routers tried in order when this one errors, times out, is over budget or (fallback_on_low_confidence) is unsure."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Rule": {
+      "properties": {
+        "when": {
+          "type": "string",
+          "description": "CEL expression over msg (msg.json, msg.headers, msg.subject, msg.source, ...)."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Destinations when it holds."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "when",
+        "to"
+      ]
+    },
+    "SASL": {
+      "properties": {
+        "mechanism": {
+          "type": "string",
+          "enum": [
+            "plain",
+            "scram-sha-256",
+            "scram-sha-512"
+          ],
+          "description": "SASL mechanism."
+        },
+        "username": {
+          "type": "string",
+          "description": "User name."
+        },
+        "password": {
+          "type": "string",
+          "description": "Password; use {{secrets.X}}."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mechanism",
+        "username",
+        "password"
+      ]
+    },
+    "Sentinel": {
+      "properties": {
+        "master_name": {
+          "type": "string",
+          "description": "Monitored master."
+        },
+        "addrs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Sentinel addresses."
+        },
+        "password": {
+          "type": "string",
+          "description": "Sentinel password."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "master_name",
+        "addrs"
+      ]
+    },
+    "Server": {
+      "properties": {
+        "admin": {
+          "$ref": "#/$defs/Admin",
+          "description": "Admin API: /healthz /readyz /metrics /reload /v1/feedback /v1/history /v1/tail."
+        },
+        "shutdown_grace": {
+          "$ref": "#/$defs/Duration",
+          "description": "Time in-flight messages get to finish on shutdown (default 20s)."
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Messages processed at once (default 256)."
+        },
+        "readiness": {
+          "$ref": "#/$defs/Readiness",
+          "description": "What /readyz checks."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Size": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^(?i)\\d+(\\.\\d+)?\\s*(b|kb|mb|gb|kib|mib|gib|k|m|g)?$"
+        }
+      ],
+      "description": "A byte count: 512, 8KiB, 10MB."
+    },
+    "Source": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique source name."
+        },
+        "type": {
+          "type": "string",
+          "description": "Protocol: http, https, ws, wss, sse, stdin, file (M1); see the protocol matrix for the rest."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "listen",
+            "poll",
+            "subscribe"
+          ],
+          "description": "listen (hikyaku is the server), poll (pull on a schedule) or subscribe (long-lived client). Defaults per protocol."
+        },
+        "listen": {
+          "type": "string",
+          "description": "listen: address, such as :8080."
+        },
+        "path": {
+          "type": "string",
+          "description": "listen: request path (default /); file: the file to read."
+        },
+        "methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "http listen: accepted methods (default POST, PUT)."
+        },
+        "tls": {
+          "$ref": "#/$defs/TLS",
+          "description": "TLS (and mTLS with client_ca_file) for listen, DTLS for udp; client TLS for poll and subscribe."
+        },
+        "auth": {
+          "$ref": "#/$defs/Auth",
+          "description": "Inbound authentication of listen sources."
+        },
+        "ack": {
+          "type": "string",
+          "enum": [
+            "delivered",
+            "accepted"
+          ],
+          "description": "delivered (default) or accepted. http and grpc listen: delivered answers once the message is delivered or dead-lettered, accepted as soon as it is queued (on disk with a disk buffer). Subscribe sources: delivered acknowledges the broker once the outcome is final, accepted once the message is queued (safe with buffer.type: disk only)."
+        },
+        "respond": {
+          "$ref": "#/$defs/Respond",
+          "description": "http and grpc listen: send a destination's reply back to the caller (smart reverse proxy; grpc maps it into the method's output type)."
+        },
+        "max_body_bytes": {
+          "$ref": "#/$defs/Size",
+          "description": "Largest accepted message (default 10MiB; grpc and openai 4MiB; tcp, udp and mqtt 1MiB). A listen source refuses a larger one (http 413, grpc RESOURCE_EXHAUSTED); a subscribe or poll source logs it and acknowledges it, so it cannot loop forever."
+        },
+        "url": {
+          "type": "string",
+          "description": "poll or subscribe: the endpoint."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "poll or subscribe: request headers."
+        },
+        "method": {
+          "type": "string",
+          "description": "poll: request method (default GET)."
+        },
+        "body": {
+          "type": "string",
+          "description": "poll: request body."
+        },
+        "interval": {
+          "$ref": "#/$defs/Duration",
+          "description": "poll: time between polls (default 30s)."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "poll (http, s3, gcs): per-request timeout (default 10s)."
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry",
+          "description": "poll (http, s3): retries per poll before skipping to the next interval. gcs retries its reads itself."
+        },
+        "dedupe": {
+          "$ref": "#/$defs/Dedupe",
+          "description": "Drop messages whose key was seen within the ttl, on any source (poll dedupe, cross-replica idempotency). A duplicate is acked as filtered and counted in hikyaku_deduped_total."
+        },
+        "split": {
+          "type": "string",
+          "description": "poll: jq expression that splits one response into several messages, such as .items[]. s3, gcs: also lines, one message per non-empty line of an object (NDJSON)."
+        },
+        "reconnect": {
+          "$ref": "#/$defs/Reconnect",
+          "description": "subscribe: reconnect policy."
+        },
+        "failover_urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "subscribe (ws, wss, sse, grpc, nats, jetstream, mqtt, amqp, redis): URLs rotated through when the primary is down."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "body",
+            "envelope"
+          ],
+          "description": "stdin and file: each line is a message body (default) or an envelope in wire form."
+        },
+        "follow": {
+          "type": "boolean",
+          "description": "file: keep reading lines appended to the file."
+        },
+        "brokers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "kafka: bootstrap brokers (host:port)."
+        },
+        "topic": {
+          "type": "string",
+          "description": "kafka, mqtt: the topic (mqtt: a topic filter); eventhubs: the event hub; servicebus: the topic (with subscription)."
+        },
+        "topics": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "kafka, mqtt: several topics (mqtt: filters) instead of topic."
+        },
+        "group": {
+          "type": "string",
+          "description": "kafka, redis streams, eventhubs: consumer group; mqtt v5: shared subscription group ($share/\u003cgroup\u003e/\u003cfilter\u003e)."
+        },
+        "start": {
+          "type": "string",
+          "enum": [
+            "earliest",
+            "latest",
+            "all",
+            "new",
+            "last"
+          ],
+          "description": "Where a new consumer starts. kafka, redis streams, eventhubs: earliest or latest (default latest); jetstream: all, new (default) or last."
+        },
+        "sasl": {
+          "$ref": "#/$defs/SASL",
+          "description": "kafka: SASL authentication."
+        },
+        "username": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: user name (mqtt, amqp and redis also take it in the URL; this field wins)."
+        },
+        "password": {
+          "type": "string",
+          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+        },
+        "token": {
+          "type": "string",
+          "description": "nats: authentication token; use {{secrets.X}}."
+        },
+        "creds_file": {
+          "type": "string",
+          "description": "nats: a .creds file (JWT and NKey seed)."
+        },
+        "subject": {
+          "type": "string",
+          "description": "nats: subject (wildcards * and \u003e allowed); jetstream: filter subject of the consumer."
+        },
+        "queue": {
+          "type": "string",
+          "description": "nats: queue group (members share the messages); amqp: the queue consumed; servicebus: the queue."
+        },
+        "prefetch": {
+          "type": "integer",
+          "description": "Messages a subscribe source keeps in flight: amqp prefetch, jetstream max_ack_pending, redis streams entries read and not acknowledged, kafka records buffered, mqtt v5 receive maximum, pubsub max outstanding, servicebus prefetch (default 64); nats: messages buffered before the client drops them (default 65536). sqs: messages per receive, 1 to 10 (default 10)."
+        },
+        "ack_wait": {
+          "$ref": "#/$defs/Duration",
+          "description": "jetstream: redelivery delay of an unacknowledged message; redis streams: how long a pending entry stays idle before it is reclaimed and delivered again (default 30s for both)."
+        },
+        "stream": {
+          "type": "string",
+          "description": "jetstream: the stream; redis: the stream key (XREADGROUP)."
+        },
+        "consumer": {
+          "type": "string",
+          "description": "redis streams: this consumer's name in the group (default \u003chost name\u003e-\u003csource name\u003e); keep it stable, a restart resumes the entries it left pending."
+        },
+        "durable": {
+          "type": "string",
+          "description": "jetstream: durable consumer name, so a restart resumes where it stopped (default the source name)."
+        },
+        "channel": {
+          "type": "string",
+          "description": "redis pub/sub: channel, or a pattern with * (PSUBSCRIBE)."
+        },
+        "qos": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "description": "mqtt: subscription QoS (default 1)."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "mqtt: client identifier, which keys a persistent session; kafka: client.id. Default hikyaku-\u003crelay\u003e-\u003csource\u003e."
+        },
+        "clean_session": {
+          "type": "boolean",
+          "description": "mqtt: start a clean session (default false: the broker keeps the session and queued QoS 1/2 messages across reconnects)."
+        },
+        "protocol_version": {
+          "type": "string",
+          "enum": [
+            "3.1.1",
+            "5"
+          ],
+          "description": "mqtt: protocol version (default 5)."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "amqp: exchange the queue is bound to (with routing_key)."
+        },
+        "routing_key": {
+          "type": "string",
+          "description": "amqp: binding key of the queue on exchange."
+        },
+        "declare": {
+          "type": "boolean",
+          "description": "amqp: declare the queue (durable) and its binding when missing."
+        },
+        "descriptor_set": {
+          "type": "string",
+          "description": "grpc: a FileDescriptorSet file (protoc --descriptor_set_out --include_imports) describing the services."
+        },
+        "services": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "grpc listen: the services of descriptor_set to serve (default all); hikyaku.relay.v1.Relay is always served."
+        },
+        "reflection": {
+          "type": "boolean",
+          "description": "grpc listen: serve the reflection service (default true); subscribe: resolve method through server reflection when there is no descriptor_set (default true)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "newline",
+            "length",
+            "raw"
+          ],
+          "description": "tcp, udp: framing. newline (default): one message per line; length: each message after a length_bytes big-endian length; raw: tcp, a connection's whole stream; udp, each datagram."
+        },
+        "length_bytes": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "description": "tcp, udp: size of the length prefix with frame: length (default 4)."
+        },
+        "queue_url": {
+          "type": "string",
+          "description": "sqs: the queue URL. sns, eventbridge: the SQS queue subscribed to the topic or rule."
+        },
+        "wait_time": {
+          "$ref": "#/$defs/Duration",
+          "description": "sqs: long-poll wait (default 20s, at most 20s)."
+        },
+        "visibility_timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "sqs: how long a received message stays hidden (default the queue's)."
+        },
+        "bucket": {
+          "type": "string",
+          "description": "s3, gcs: the bucket polled."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "s3, gcs: only objects under this prefix."
+        },
+        "after": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "delete",
+            "move"
+          ],
+          "description": "s3, gcs: what happens to an object once its messages are final: keep (remembered in state_store), delete (default) or move (to move_to)."
+        },
+        "move_to": {
+          "type": "string",
+          "description": "s3, gcs: prefix objects are moved under with after: move."
+        },
+        "state_store": {
+          "type": "string",
+          "description": "Store (by name) that keeps a source's progress: eventhubs checkpoints, s3/gcs objects already read with after: keep. Default the first store."
+        },
+        "subscription": {
+          "type": "string",
+          "description": "pubsub: the subscription; servicebus: the topic subscription."
+        },
+        "aws": {
+          "$ref": "#/$defs/AWS",
+          "description": "sqs, sns, eventbridge, s3: AWS region and credentials (default the SDK's chain)."
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCP",
+          "description": "pubsub, gcs: project and credentials (default Application Default Credentials)."
+        },
+        "azure": {
+          "$ref": "#/$defs/Azure",
+          "description": "servicebus, eventhubs: connection string or namespace and credentials."
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "openai: the model names /v1/models lists and clients may ask for (default [hikyaku]); route on msg.json.model."
+        },
+        "ordering": {
+          "$ref": "#/$defs/Ordering",
+          "description": "Deliver messages with the same key one at a time, in arrival order."
+        },
+        "options": {
+          "type": "object",
+          "description": "Settings of a plugin type (a source registered by a custom build); the plugin decodes and validates them."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "Sticky": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Turn sticky routing on."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "model",
+            "always_last",
+            "off"
+          ],
+          "description": "model (default): ask the model whether it is a follow-up; always_last: always reuse the last destinations, no model call."
+        },
+        "follow_up_threshold": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "Follow-up probability needed (default 0.8)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Store": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique store name."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "redis",
+            "memory"
+          ],
+          "description": "redis, or memory (in-process: local runs and tests)."
+        },
+        "addr": {
+          "type": "string",
+          "description": "redis standalone: host:port."
+        },
+        "sentinel": {
+          "$ref": "#/$defs/Sentinel",
+          "description": "redis Sentinel."
+        },
+        "cluster": {
+          "$ref": "#/$defs/Cluster",
+          "description": "redis Cluster."
+        },
+        "username": {
+          "type": "string",
+          "description": "ACL user."
+        },
+        "password": {
+          "type": "string",
+          "description": "Password, usually {{secrets.NAME}}."
+        },
+        "tls": {
+          "$ref": "#/$defs/TLS",
+          "description": "TLS to Redis."
+        },
+        "db": {
+          "type": "integer",
+          "description": "Database number (standalone and Sentinel)."
+        },
+        "key_prefix": {
+          "type": "string",
+          "description": "Key prefix (default hikyaku)."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "Per-operation timeout (default 50ms): reads must never stall routing."
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry",
+          "description": "Retries per operation (default attempts 2, backoff 10ms)."
+        },
+        "circuit_breaker": {
+          "$ref": "#/$defs/CircuitBreaker",
+          "description": "Stops hammering a dead store (default on)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "SystemOne": {
+      "properties": {
+        "servers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Known servers: typesafe (TYPESAFE_API_KEY), openrouter (OPENROUTER_API_KEY), workersai (CLOUDFLARE_API_TOKEN), ollama (no key)."
+        },
+        "custom": {
+          "items": {
+            "$ref": "#/$defs/SystemOneServer"
+          },
+          "type": "array",
+          "description": "Any other server that speaks the System One protocol."
+        },
+        "workersai_account_id": {
+          "type": "string",
+          "description": "Cloudflare account ID for workersai (else CLOUDFLARE_ACCOUNT_ID)."
+        },
+        "ollama_url": {
+          "type": "string",
+          "description": "Base URL of the Ollama decision server (default http://localhost:11434)."
+        },
+        "typesafe_base_url": {
+          "type": "string",
+          "description": "Override TypeSafe's base URL (else TYPESAFE_BASE_URL)."
+        },
+        "openrouter_base_url": {
+          "type": "string",
+          "description": "Override OpenRouter's base URL."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SystemOneServer": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Plugin name and model prefix: models are \u003cprovider\u003e/\u003cid\u003e."
+        },
+        "base_url": {
+          "type": "string",
+          "description": "Server root."
+        },
+        "path": {
+          "type": "string",
+          "description": "Decision endpoint path (default /v1/systemone)."
+        },
+        "models_path": {
+          "type": "string",
+          "description": "Model listing path."
+        },
+        "api_key": {
+          "type": "string",
+          "description": "Bearer key, usually {{secrets.NAME}}."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Extra request headers."
+        },
+        "images": {
+          "type": "boolean",
+          "description": "The server reads images."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "base_url"
+      ]
+    },
+    "TLS": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Use TLS (implied by any other field and by https/wss)."
+        },
+        "cert_file": {
+          "type": "string",
+          "description": "Certificate (server cert, or client cert for mTLS)."
+        },
+        "key_file": {
+          "type": "string",
+          "description": "Private key of cert_file."
+        },
+        "ca_file": {
+          "type": "string",
+          "description": "CA bundle that verifies the server."
+        },
+        "client_ca_file": {
+          "type": "string",
+          "description": "listen: CA bundle that verifies client certificates (mTLS)."
+        },
+        "server_name": {
+          "type": "string",
+          "description": "SNI and verification name."
+        },
+        "insecure_skip_verify": {
+          "type": "boolean",
+          "description": "Skip server verification (development only)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TagList": {
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          }
+        ]
+      },
+      "type": "array",
+      "description": "Error tags: classes (connect, timeout), ranges (5xx, 4xx), exact codes (503, or a bare number) and protocol codes (ws:close_1011)."
+    },
+    "Transform": {
+      "properties": {
+        "filter": {
+          "type": "string",
+          "description": "CEL expression; false drops the message from this route or destination."
+        },
+        "jq": {
+          "type": "string",
+          "description": "jq program over the JSON body; its output is the new body."
+        },
+        "template": {
+          "type": "string",
+          "description": "Go template rendered as the new body."
+        },
+        "headers": {
+          "$ref": "#/$defs/HeaderOps",
+          "description": "Set, add or remove headers (values are templates)."
+        },
+        "codec": {
+          "type": "string",
+          "enum": [
+            "json",
+            "text",
+            "base64_encode",
+            "base64_decode",
+            "form_to_json",
+            "cloudevents"
+          ],
+          "description": "Re-encode the body."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "Set the content type (alone, or after jq or template)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Window": {
+      "properties": {
+        "max_entries": {
+          "type": "integer",
+          "description": "Newest records sent (default 10)."
+        },
+        "max_age": {
+          "$ref": "#/$defs/Duration",
+          "description": "Oldest record sent."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ],
+      "description": "Spec format version. Always 1."
+    },
+    "name": {
+      "type": "string",
+      "description": "Relay name. Used in metrics, logs and the shared-state keys."
+    },
+    "secrets": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "Secrets by name, each a mamori ref (env:NAME, file:///path, vault://..., or a comma-separated chain tried in order, such as env:A,file:///run/a). Reference one as {{secrets.NAME}}."
+    },
+    "genkit": {
+      "$ref": "#/$defs/Genkit",
+      "description": "Genkit plugins for the AI router."
+    },
+    "models": {
+      "$ref": "#/$defs/Models",
+      "description": "Default models, model retries and model fallback chains."
+    },
+    "defaults": {
+      "$ref": "#/$defs/Policy",
+      "description": "Delivery policy inherited by every destination (each field on its own)."
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "type": "array",
+      "description": "Where messages come from."
+    },
+    "destinations": {
+      "items": {
+        "$ref": "#/$defs/Destination"
+      },
+      "type": "array",
+      "description": "Where messages go."
+    },
+    "stores": {
+      "items": {
+        "$ref": "#/$defs/Store"
+      },
+      "type": "array",
+      "description": "Shared-state backends (history, decision cache, dedupe, idempotency, budgets), referenced by name. The first one is the default store; with none, an in-process memory store is used."
+    },
+    "dead_letter": {
+      "$ref": "#/$defs/DeadLetter",
+      "description": "Where a message goes when a required destination and all its fallbacks failed. Defaults to stderr."
+    },
+    "routes": {
+      "items": {
+        "$ref": "#/$defs/Route"
+      },
+      "type": "array",
+      "description": "Which destinations get the messages of which sources."
+    },
+    "server": {
+      "$ref": "#/$defs/Server",
+      "description": "Admin API, workers and shutdown."
+    },
+    "observability": {
+      "$ref": "#/$defs/Observability",
+      "description": "Logs, OpenTelemetry traces and Prometheus metrics."
+    },
+    "buffer": {
+      "$ref": "#/$defs/Buffer",
+      "description": "The queue between sources and delivery workers."
+    },
+    "egress": {
+      "$ref": "#/$defs/Egress",
+      "description": "SSRF guard for destinations whose URL host is a per-message template."
+    },
+    "plugins": {
+      "items": {
+        "$ref": "#/$defs/PluginBinary"
+      },
+      "type": "array",
+      "description": "Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "name",
+    "sources",
+    "destinations",
+    "routes"
+  ],
+  "title": "hikyaku.yaml",
+  "description": "A hikyaku relay: sources, destinations, routes and their retry and fallback policies. See https://xavidop.github.io/hikyaku/docs/spec-reference/."
+}

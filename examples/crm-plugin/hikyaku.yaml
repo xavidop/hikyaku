@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# crm-plugin: leads from a web form, posted to a CRM by an out-of-process Go
+# plugin (hikyaku-crm, built from this directory with grpcplugin.Serve).
+# hikyaku starts the plugin, checks the crm destination's options: against
+# the JSON Schema the plugin declares, and retries and dead-letters around
+# it like any destination: a 429 or 5xx from the CRM is retried, a message
+# that is not a lead goes straight to the DLQ.
+#
+#   go build -o bin/hikyaku-crm .
+#   export CRM_TOKEN=...
+#   hikyaku run -f hikyaku.yaml
+version: 1
+name: crm-leads
+
+secrets:
+  CRM_TOKEN: env:CRM_TOKEN
+
+plugins:
+  - name: crm
+    command: ./bin/hikyaku-crm # relative to this spec, or on PATH
+    args: ["--region", "eu"]
+    env: { CRM_TOKEN: "{{secrets.CRM_TOKEN}}" }
+    # Pin the binary you built, so hikyaku refuses any other one:
+    # sha256: "<shasum -a 256 bin/hikyaku-crm>"
+
+sources:
+  - name: forms
+    type: http
+    listen: ":8080"
+    path: /leads
+
+destinations:
+  - name: leads
+    type: crm # served by the plugin
+    options: { pipeline: inbound }
+    timeout: 5s
+    retry: { attempts: 5, backoff: 200ms, max_backoff: 5s, respect_retry_after: true }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - { name: inbound, from: [forms], to: [leads] }
+
+server:
+  admin: { listen: ":9090" }

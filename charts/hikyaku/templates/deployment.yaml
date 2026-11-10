@@ -1,0 +1,18 @@
+{{- if not .Values.persistence.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hikyaku.fullname" . }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ int .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hikyaku.relaySelectorLabels" . | nindent 6 }}
+  template:
+    {{- include "hikyaku.podTemplate" . | nindent 4 }}
+{{- end }}

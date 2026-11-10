@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# wss-to-http: subscribe to a WebSocket event stream (reconnecting with
+# backoff and rotating to a failover URL), keep the events that matter, reshape
+# them with jq and POST them to an HTTP API; everything is also archived.
+#
+#   export STREAM_TOKEN=...
+#   hikyaku validate && hikyaku run
+version: 1
+name: wss-to-http
+
+secrets:
+  STREAM_TOKEN: env:STREAM_TOKEN
+
+sources:
+  - name: live-events
+    type: wss
+    mode: subscribe
+    url: wss://stream.example.com/events
+    headers: { Authorization: "Bearer {{secrets.STREAM_TOKEN}}" }
+    reconnect: { backoff: 500ms, max_backoff: 30s, jitter: full, max_attempts: 0 } # 0 = forever
+    failover_urls: [wss://stream-eu.example.com/events]
+
+destinations:
+  - name: api
+    type: https
+    url: https://api.example.com/v1/events
+    headers: { X-Event-Type: "{{ .json.type }}" }
+    retry: { attempts: 5, backoff: 200ms }
+    circuit_breaker: { failure_ratio: 0.5, min_requests: 20, open_for: 30s }
+    fallback: [spool]
+  - { name: spool, type: file, path: ./out/spool.ndjson }
+  - { name: archive, type: file, path: ./out/archive.ndjson }
+
+routes:
+  - name: forward
+    from: [live-events]
+    filter: 'has(msg.json.type) && msg.json.type != "heartbeat"'
+    transforms:
+      - jq: '{id: .id, type: .type, at: .ts, data: .payload}'
+    to: [api]
+  - name: archive
+    from: [live-events]
+    to: [archive]
+
+server:
+  admin: { listen: ":9090" }

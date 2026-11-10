@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# ai-triage: an AI router picks the team(s) that must see each support event.
+# It asks System One decision models (calibrated probabilities), falls back to
+# a local model, then to CEL rules, then to a static catch-all. Each
+# customer's past calls go back to the model, and follow-ups stick to where
+# the previous one went.
+#
+#   export TYPESAFE_API_KEY=...   # https://typesafe.ai
+#   hikyaku validate && hikyaku route --dry-run --source webhooks --data @msg.json
+#   hikyaku ai test --route triage --cases cases.yaml
+version: 1
+name: ai-triage
+
+secrets:
+  TYPESAFE_API_KEY: env:TYPESAFE_API_KEY
+
+genkit:
+  systemone:
+    servers: [typesafe, ollama]
+
+models:
+  decision: typesafe/jev-1.13.0 # pin a version: thresholds are tuned per release
+  retry: { attempts: 3, backoff: 500ms, max_backoff: 10s }
+  fallback:
+    decision: [ollama-decisions/clef] # local, always available
+
+sources:
+  - name: webhooks
+    type: http
+    listen: ":8080"
+    path: /events
+
+destinations:
+  - { name: billing, type: https, url: https://billing.example.com/hook, fallback: [triage-log] }
+  - { name: support, type: https, url: https://support.example.com/hook, fallback: [triage-log] }
+  - { name: oncall, type: https, url: https://oncall.example.com/hook, required: false }
+  - { name: triage-log, type: file, path: ./out/triage.ndjson }
+
+# stores:            # history in Redis, shared by every replica:
+#   - { name: redis-main, type: redis, addr: "localhost:6379" }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: triage
+    from: [webhooks]
+    router:
+      type: ai
+      # Only free-text customer messages reach the model; typed events
+      # (invoice.paid, ...) skip it for the rules below, with no model call.
+      when: has(msg.json.text)
+      engine: decision
+      instructions: |
+        You route customer events for a SaaS company. Pick the team(s) that must see it.
+      state: "{{ .bodyText }}"
+      state_json: true
+      candidates:
+        - { name: billing, description: "Money: payments, invoices, charges, refunds, plans and subscription changes" }
+        - { name: support, description: "The product misbehaves or the customer needs help: bugs, errors, crashes, how-to questions" }
+        - { name: oncall, description: "A live incident: the service is down or failing for many customers right now" }
+      multi: true
+      min_confidence: 0.9 # tuned with hikyaku ai test on jev-1.13.0: 5/5 cases, ECE 0.03
+      input: { max_bytes: 8KiB, redact: ["$.card.number", "$.email"] }
+      timeout: 4s
+      history:
+        key: "{{ .json.customer_id }}"
+        window: { max_entries: 10, max_age: 24h }
+        ttl: 7d
+        sticky: { enabled: true, follow_up_threshold: 0.8 }
+      on_low_confidence: [support]
+      fallback:
+        - type: rules
+          rules:
+            - { when: 'has(msg.json.type) && msg.json.type.startsWith("invoice.")', to: [billing] }
+        - type: static
+          to: [support]
+
+server:
+  admin: { listen: ":9090" }

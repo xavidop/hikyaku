@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The offline twin of hikyaku.yaml: the CRM's API is an http listen source of
+# the same relay (127.0.0.1:8082). It checks the bearer token the plugin
+# sends and writes each lead it gets to out/crm.ndjson.
+#
+#   go build -o bin/hikyaku-crm .
+#   export CRM_TOKEN=dev-token
+#   hikyaku run -f hikyaku.llmfake.yaml
+version: 1
+name: crm-leads
+
+secrets:
+  CRM_TOKEN: env:CRM_TOKEN
+
+plugins:
+  - name: crm
+    command: ./bin/hikyaku-crm
+    args: ["--region", "eu"]
+    env: { CRM_TOKEN: "{{secrets.CRM_TOKEN}}" }
+
+sources:
+  - { name: forms, type: http, listen: ":8080", path: /leads }
+  - name: crm-api
+    type: http
+    listen: "127.0.0.1:8082"
+    path: /v1/pipelines/inbound/leads
+    auth: { bearer: { tokens: ["{{secrets.CRM_TOKEN}}"] } }
+
+destinations:
+  - name: leads
+    type: crm
+    options: { pipeline: inbound, base_url: "http://127.0.0.1:8082/v1" }
+    timeout: 5s
+    retry: { attempts: 3, backoff: 50ms }
+  - { name: crm-db, type: file, path: ./out/crm.ndjson, format: body }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - { name: inbound, from: [forms], to: [leads] }
+  - { name: crm, from: [crm-api], to: [crm-db] }
+
+server:
+  admin: { listen: ":9090" }

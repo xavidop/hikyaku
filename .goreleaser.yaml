@@ -1,0 +1,271 @@
+# GoReleaser configuration for hikyaku.
+#
+# The root module is a library consumed via `go get` at the git tag. GoReleaser
+# builds and releases the hikyaku CLI (cmd/hikyaku, its own module) in two
+# flavors, both pure Go (CGO_ENABLED=0) and cross-compiled here for every OS
+# and arch:
+#   - hikyaku: the full build. cmd/hikyaku/app/wiring.go and wiring_web.go
+#     register the http, ws, sse, tcp/udp, file, fault and openai protocols,
+#     and wiring_full.go adds the brokers, the clouds, grpc and out-of-process
+#     plugins. This is what the hikyaku_* archives, the Linux packages, the
+#     Homebrew cask, the Scoop manifest and the container image ship.
+#   - hikyaku-lite: -tags lite, which leaves out wiring_full.go: no broker or
+#     cloud SDKs. It ships as the hikyaku-lite_* archives.
+version: 2
+
+project_name: hikyaku
+
+before:
+  hooks:
+    # The shell completions go into the archives and the Linux packages.
+    - bash ./scripts/completions.sh
+
+builds:
+  - id: hikyaku
+    dir: cmd/hikyaku
+    main: .
+    binary: hikyaku
+    env:
+      - CGO_ENABLED=0
+      - GOWORK=off
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+  - id: hikyaku-lite
+    dir: cmd/hikyaku
+    main: .
+    binary: hikyaku
+    env:
+      - CGO_ENABLED=0
+      - GOWORK=off
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -tags=lite
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+# THIRD_PARTY_* is a glob: the archives carry THIRD_PARTY_LICENSES.csv and
+# THIRD_PARTY_NOTICES.md (make notices regenerates both).
+archives:
+  - id: hikyaku
+    ids: [hikyaku]
+    name_template: "hikyaku_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_*
+      - completions/*
+  - id: hikyaku-lite
+    ids: [hikyaku-lite]
+    name_template: "hikyaku-lite_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_*
+      - completions/*
+
+# Linux packages, attached to the GitHub Release next to the archives. They
+# install the full binary and the shell completions; no package repository is
+# published, so a user downloads the file for their distribution.
+nfpms:
+  - id: hikyaku-packages
+    ids: [hikyaku]
+    package_name: hikyaku
+    file_name_template: "hikyaku_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Xavier Portilla Edo
+    maintainer: Xavier Portilla Edo <xavi_tb@hotmail.com>
+    homepage: "https://xavidop.github.io/hikyaku/"
+    description: YAML-configured message relay with AI routing, retries and fallbacks.
+    license: MIT
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    section: net
+    contents:
+      - src: ./completions/hikyaku.bash
+        dst: /usr/share/bash-completion/completions/hikyaku
+        file_info:
+          mode: 0644
+      - src: ./completions/hikyaku.fish
+        dst: /usr/share/fish/vendor_completions.d/hikyaku.fish
+        file_info:
+          mode: 0644
+      - src: ./completions/hikyaku.zsh
+        dst: /usr/share/zsh/vendor-completions/_hikyaku
+        file_info:
+          mode: 0644
+      - src: ./LICENSE
+        dst: /usr/share/doc/hikyaku/copyright
+        file_info:
+          mode: 0644
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
+        - changelog-file-missing-in-native-package
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
+
+# Keyless signatures (Sigstore): checksums.txt is signed with cosign using the
+# workflow's OIDC identity, so verifying checksums.txt.sig against its
+# certificate proves every archive and package came from this repository's
+# Release workflow. The image is signed by digest the same way. The
+# .sig/.pem pair is cosign v2's output (release.yml installs cosign v2).
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.sig"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+# artifacts is left at its default, which selects the dockers_v2 images.
+docker_signs:
+  - cmd: cosign
+    args:
+      - sign
+      - "${artifact}@${digest}"
+      - "--yes"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Protocols
+      regexp: '^.*?(feat|fix)\((http|ws|sse|file|fault|grpc|tcp|kafka|nats|mqtt|amqp|redis|aws|gcp|azure|openai)\).+$'
+      order: 0
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 1
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 2
+    - title: Documentation
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 3
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: xavidop
+    name: hikyaku
+  draft: false
+  prerelease: auto
+  name_template: "hikyaku {{ .Tag }}"
+  footer: |
+    ---
+    **Install:** `brew install xavidop/tap/hikyaku` (macOS), `scoop install hikyaku` (Windows, after
+    `scoop bucket add xavidop https://github.com/xavidop/scoop-bucket`), the `.deb`, `.rpm` or
+    `.apk` package below (Linux), or `docker pull ghcr.io/xavidop/hikyaku:{{ .Version }}`
+    (linux/amd64 and linux/arm64).
+
+    The `hikyaku_*` archives, the packages and the image are the full build; the `hikyaku-lite_*`
+    archives are built with `-tags lite`, without the protocols that need heavy broker or cloud SDKs.
+
+    **Verify:** `checksums.txt` is signed with Sigstore (`checksums.txt.sig`, `checksums.txt.pem`):
+    `cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig --certificate-identity-regexp 'https://github.com/xavidop/hikyaku/' --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt`,
+    then `sha256sum -c checksums.txt --ignore-missing`. The image: `cosign verify ghcr.io/xavidop/hikyaku:{{ .Version }} --certificate-identity-regexp 'https://github.com/xavidop/hikyaku/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`.
+    SLSA provenance for the archives and packages is attached as `hikyaku.intoto.jsonl`.
+
+    **Docs:** https://xavidop.github.io/hikyaku/
+
+# The image ships the full binary on gcr.io/distroless/static:nonroot (see the
+# Dockerfile), as one multi-arch manifest. dockers_v2 builds and pushes it with
+# buildx in the publish phase; release.yml sets up the builder.
+dockers_v2:
+  - id: hikyaku
+    ids: [hikyaku]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/xavidop/hikyaku
+    tags:
+      - "{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    # dockers_v2 takes no globs here (the Dockerfile copies THIRD_PARTY_*).
+    # make notices regenerates both THIRD_PARTY files.
+    extra_files:
+      - LICENSE
+      - THIRD_PARTY_LICENSES.csv
+      - THIRD_PARTY_NOTICES.md
+    labels:
+      "org.opencontainers.image.title": hikyaku
+      "org.opencontainers.image.description": "YAML-configured message relay with AI routing, retries and fallbacks."
+      "org.opencontainers.image.url": "https://xavidop.github.io/hikyaku/"
+      "org.opencontainers.image.source": "https://github.com/xavidop/hikyaku"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.licenses": MIT
+    # On a multi-arch build these land on the index, which is what the ghcr.io
+    # package page reads.
+    annotations:
+      "org.opencontainers.image.description": "YAML-configured message relay with AI routing, retries and fallbacks."
+      "org.opencontainers.image.source": "https://github.com/xavidop/hikyaku"
+      "org.opencontainers.image.licenses": MIT
+
+# The Scoop manifest is committed to xavidop/scoop-bucket, which needs a token
+# that can write there (see release.yml). Scoop reads the Windows zip archives.
+scoops:
+  - name: hikyaku
+    ids: [hikyaku]
+    repository:
+      owner: xavidop
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://xavidop.github.io/hikyaku/"
+    description: "YAML-configured message relay with AI routing, retries and fallbacks."
+    license: MIT
+
+# The tap lives in a different repository, so this block needs its own token
+# (see release.yml, which falls back to GITHUB_TOKEN when the secret is absent).
+# Casks have no `test` block: release.yml smoke-tests the built binary with
+# `hikyaku version` instead. The binary is unsigned, so the postflight clears
+# the macOS quarantine attribute. Casks install on macOS only.
+homebrew_casks:
+  - name: hikyaku
+    ids: [hikyaku]
+    binaries: [hikyaku]
+    directory: Casks
+    repository:
+      owner: xavidop
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://xavidop.github.io/hikyaku/"
+    # Homebrew rejects a description that ends with a period.
+    description: "YAML-configured message relay with AI routing, retries and fallbacks"
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr",
+              args:           ["-dr", "com.apple.quarantine", "{{ "{{" }}staged_path}}/hikyaku"],
+              writable_paths: ["hikyaku"],
+              writable_base:  :staged_path
+        end
+      end

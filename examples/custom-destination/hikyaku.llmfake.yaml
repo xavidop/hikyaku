@@ -1,0 +1,27 @@
+# The offline twin: the chat webhook is an http listen source of the same
+# relay (:8082), which writes what the chat destination posts to
+# out/chat.ndjson. Alerts come in over HTTP (:8080/alerts) or as files
+# dropped in ./inbox.
+version: 1
+name: chat-alerts
+
+sources:
+  - { name: alerts, type: http, listen: ":8080", path: /alerts }
+  - { name: drops, type: inbox, options: { dir: ./inbox, interval: 200ms } }
+  - { name: chat-webhook, type: http, listen: "127.0.0.1:8082", path: /hook }
+
+destinations:
+  - name: chat
+    type: chat
+    options:
+      webhook_url: http://127.0.0.1:8082/hook
+      text: "{{ .json.severity }}: {{ .json.summary }}"
+      username: hikyaku
+    retry: { attempts: 3, backoff: 20ms }
+    fallback: [backlog]
+  - { name: backlog, type: file, path: ./out/backlog.ndjson }
+  - { name: posted, type: file, path: ./out/chat.ndjson, format: body }
+
+routes:
+  - { name: notify, from: [alerts, drops], to: [chat] }
+  - { name: webhook, from: [chat-webhook], to: [posted] }

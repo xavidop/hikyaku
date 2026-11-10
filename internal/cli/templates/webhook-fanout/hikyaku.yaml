@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# webhook-fanout: every webhook posted to :8080/ingest is printed and
+# archived. It runs as is:
+#
+#   hikyaku validate && hikyaku run
+#   curl -i localhost:8080/ingest -H 'Content-Type: application/json' -d '{"type":"invoice.paid"}'
+#
+# Then make it real: add HTTPS destinations to the route, each with a
+# fallback, for example
+#
+#   - name: billing
+#     type: https
+#     url: https://billing.example.com/api/events
+#     retry: { attempts: 5, backoff: 200ms }
+#     fallback: [archive]
+#
+# and sign the webhooks: auth: { hmac: { header: X-Signature-256, secret: "{{secrets.WEBHOOK_SECRET}}" } }
+version: 1
+name: webhook-fanout
+
+sources:
+  - name: webhooks
+    type: http
+    mode: listen
+    listen: ":8080"
+    path: /ingest
+
+destinations:
+  - name: console
+    type: stdout
+    format: body
+  - name: archive
+    type: file
+    path: ./out/archive.ndjson
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: fanout
+    from: [webhooks]
+    to: [console, archive]
+
+server:
+  admin: { listen: ":9090" }

@@ -1,0 +1,3 @@
+# Copied from ../schema/hikyaku.schema.json by scripts/copy-schema.mjs before
+# every dev and build run; the root schema/ directory is the source of truth.
+/public/schema/

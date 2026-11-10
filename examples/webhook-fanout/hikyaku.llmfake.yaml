@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The offline twin of hikyaku.yaml: the same fan-out, with fault sinks in
+# place of the internal services, so every resilience path runs on your
+# machine with no network:
+#
+#   - billing fails its first 2 attempts, then succeeds: retries;
+#   - billing-dr is never reached unless billing exhausts its retries;
+#   - analytics always fails: best-effort, so the webhook still gets 200;
+#   - flaky fails every attempt: its fallback (spool) takes the message.
+#
+#   export WEBHOOK_SECRET=s3cret
+#   hikyaku run -f hikyaku.llmfake.yaml
+version: 1
+name: webhook-fanout
+
+secrets:
+  WEBHOOK_SECRET: env:WEBHOOK_SECRET
+
+defaults:
+  timeout: 2s
+  retry: { attempts: 3, backoff: 20ms, max_backoff: 200ms, jitter: full }
+
+sources:
+  - name: webhooks
+    type: http
+    mode: listen
+    listen: ":8080"
+    path: /ingest
+    auth:
+      hmac: { header: X-Signature-256, algo: sha256, secret: "{{secrets.WEBHOOK_SECRET}}" }
+
+destinations:
+  - name: billing
+    type: fault
+    fault: { fail_first: 2, status: 503 }
+    fallback: [billing-dr]
+  - name: billing-dr
+    type: file
+    path: ./out/billing-dr.ndjson
+  - name: analytics
+    type: fault
+    fault: { fail: 100%, status: 500 }
+    required: false
+    retry: { attempts: 1 }
+  - name: flaky
+    type: fault
+    fault: { fail: 100%, error: connect }
+    fallback: [spool]
+  - { name: spool, type: file, path: ./out/spool.ndjson }
+  - { name: archive, type: file, path: ./out/archive.ndjson }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: fanout
+    from: [webhooks]
+    to: [billing, analytics, flaky, archive]
+
+server:
+  admin: { listen: ":9090" }

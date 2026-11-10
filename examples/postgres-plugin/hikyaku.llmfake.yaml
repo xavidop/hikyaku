@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The local twin of hikyaku.yaml: the same plugin against a PostgreSQL on
+# localhost, with the outbox delivered to a file instead of a partner's API.
+#
+#   docker run --rm -d --name relay-db -p 5432:5432 \
+#     -e POSTGRES_USER=hikyaku -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=relay postgres:17-alpine
+#   go build -o bin/hikyaku-postgres .
+#   export DATABASE_URL=postgres://hikyaku:secret@localhost:5432/relay
+#   hikyaku run -f hikyaku.llmfake.yaml
+version: 1
+name: postgres-relay
+
+secrets:
+  DATABASE_URL: env:DATABASE_URL
+
+plugins:
+  - name: postgres
+    command: ./bin/hikyaku-postgres
+    env: { DATABASE_URL: "{{secrets.DATABASE_URL}}" }
+
+sources:
+  - { name: webhooks, type: http, listen: ":8080", path: /ingest }
+  - name: outbox
+    type: postgres
+    options: { table: outbox, interval: 200ms, claim_ttl: 30s, create_table: true }
+
+destinations:
+  - name: events
+    type: postgres
+    options: { table: events, create_table: true }
+    timeout: 5s
+    retry: { attempts: 3, backoff: 50ms }
+  - { name: partner, type: file, path: ./out/outbox.ndjson }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - { name: store, from: [webhooks], to: [events] }
+  - { name: outbox, from: [outbox], to: [partner] }
+
+server:
+  admin: { listen: ":9090" }

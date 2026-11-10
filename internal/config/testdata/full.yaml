@@ -1,0 +1,169 @@
+# hikyaku.yaml
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+version: 1
+name: support-intake
+
+secrets:
+  WEBHOOK_SECRET: env:WEBHOOK_SECRET
+  TYPESAFE_API_KEY: env:TYPESAFE_API_KEY
+  GEMINI_API_KEY: env:GEMINI_API_KEY
+  ANTHROPIC_API_KEY: env:ANTHROPIC_API_KEY
+  STREAM_TOKEN: env:STREAM_TOKEN
+  CORP_DECISIONS_KEY: env:CORP_DECISIONS_KEY
+  REDIS_PASSWORD: env:REDIS_PASSWORD
+
+genkit:
+  plugins: [systemone, googlegenai, anthropic, ollama]
+  systemone:
+    servers: [typesafe, ollama]            # typesafe | openrouter | workersai | ollama | custom
+    custom:
+      - provider: corp-decisions
+        base_url: https://decisions.internal
+        api_key: "{{secrets.CORP_DECISIONS_KEY}}"
+
+models:
+  default: googleai/gemini-2.5-flash       # generative default (verify IDs at build time)
+  decision: typesafe/jev-1.13.0            # decision default; pin versions in prod
+  retry: { attempts: 3, backoff: 500ms, max_backoff: 10s }      # per model, then next fallback
+  fallback:
+    default: [anthropic/claude-sonnet-4-5, ollama/llama3.2]
+    decision: [openrouter-decisions/liquid/d1, ollama-decisions/clef]
+
+defaults:                                   # inherited by every destination
+  timeout: 5s
+  retry: { attempts: 5, backoff: 200ms, max_backoff: 10s, jitter: full, retry_on: [connect, timeout, 5xx, 429], respect_retry_after: true }
+  circuit_breaker: { failure_ratio: 0.5, min_requests: 20, open_for: 30s, half_open_max: 5 }
+  retry_budget: { ratio: 0.2, min_per_second: 10 }
+
+sources:
+  - name: webhooks
+    type: http
+    mode: listen
+    listen: ":8080"
+    path: /ingest
+    auth: { hmac: { header: X-Signature-256, algo: sha256, secret: "{{secrets.WEBHOOK_SECRET}}" } }
+
+  - name: live-events
+    type: wss
+    mode: subscribe
+    url: wss://stream.example.com/events
+    headers: { Authorization: "Bearer {{secrets.STREAM_TOKEN}}" }
+    reconnect: { backoff: 500ms, max_backoff: 30s, jitter: full, max_attempts: 0 }   # 0 = forever
+    failover_urls: [wss://stream-eu.example.com/events]
+
+  - name: status-poller
+    type: https
+    mode: poll
+    url: https://api.example.com/status
+    interval: 30s
+    retry: { attempts: 3 }
+    dedupe: { key: "{{ .json.id }}", ttl: 1h }
+
+destinations:
+  - name: billing
+    type: https
+    url: https://billing.internal/api/events
+    method: POST
+    timeout: 3s
+    deadline: 30s                           # total time across attempts + fallbacks
+    fallback: [billing-dr, billing-queue]   # tried in order after retries are exhausted or the breaker is open
+
+  - name: billing-dr
+    type: https
+    url: https://billing-dr.internal/api/events
+
+  - name: billing-queue
+    type: kafka
+    brokers: ["kafka-0:9092"]
+    topic: billing.retry
+
+  - name: support
+    type: group
+    strategy: failover                      # failover | round_robin | weighted | least_latency
+    health_check: { path: /healthz, interval: 10s, unhealthy_after: 3 }
+    members:
+      - { type: https, url: https://support-a.internal/hook }
+      - { type: https, url: https://support-b.internal/hook }
+    idempotent: true
+    hedge: { after: 800ms, max: 1 }         # optional: race a second member if slow (idempotent sinks only)
+
+  - name: realtime-dashboard
+    type: wss
+    url: wss://dash.internal/ingest
+    required: false                         # best-effort: failure doesn't block ack
+    retry: { attempts: 1 }
+
+  - name: archive
+    type: file
+    path: ./out/archive.ndjson
+
+stores:                                     # shared state backends, referenced by name
+  - name: redis-main
+    type: redis                             # redis | memory (dev/tests)
+    addr: redis:6379                        # or sentinel: {...} / cluster: { addrs: [...] }
+    username: hikyaku
+    password: "{{secrets.REDIS_PASSWORD}}"
+    tls: { enabled: true }
+    db: 0
+    key_prefix: hikyaku
+    timeout: 50ms                           # reads must never stall routing
+    retry: { attempts: 2, backoff: 10ms }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stdout]                        # if the DLQ itself fails, never drop silently
+
+routes:
+  - name: archive-everything
+    from: [webhooks, live-events, status-poller]
+    to: [archive]
+
+  - name: smart-triage
+    from: [webhooks, live-events]
+    router:
+      type: ai
+      engine: decision                       # System One (default) | generative
+      model: typesafe/jev-1.13.0             # optional; falls back to models.decision
+      fallback_models: [ollama-decisions/clef]   # overrides models.fallback.decision
+      instructions: |
+        You route customer events for a SaaS company. Pick the team(s) that must see it.
+      state: "{{ .bodyText }}"               # what the decision model evaluates
+      state_json: true
+      candidates:
+        - { name: billing, description: "Payments, invoices, refunds, subscription changes" }
+        - { name: support, description: "Bugs, outages, how-to questions, angry customers" }
+        - { name: realtime-dashboard, description: "Anything on-call should see live" }
+      multi: true                            # true = one yes/no question per candidate; false = one Choice
+      min_confidence: 0.6
+      min_margin: 0.15                       # single choice: top − second must exceed this
+      input: { max_bytes: 8KiB, redact: ["$.card.number", "$.email"] }
+      timeout: 4s
+      cache: { store: redis-main, key: "{{ .json.ticket_id }}", ttl: 10m }
+      history:                               # route using past calls (§6.5)
+        store: redis-main
+        key: "{{ .json.customer_id }}"       # whose history: customer, conversation, session, device…
+        window: { max_entries: 10, max_age: 24h }   # what is sent to the model
+        ttl: 7d                              # what is kept in Redis
+        record: { state: redacted }          # redacted | summary | none (decision + outcome only)
+        sticky: { enabled: true, follow_up_threshold: 0.8 }
+        on_store_error: ignore               # ignore = route without history | fallback = use router.fallback
+      on_low_confidence: [support]
+      fallback:                              # router chain if the AI step fails entirely
+        - type: rules
+          rules:
+            - { when: 'msg.json.type.startsWith("invoice.")', to: [billing] }
+        - type: static
+          to: [support]
+      shadow: false
+
+server:
+  admin: { listen: ":9090" }
+  shutdown_grace: 20s
+
+observability:
+  logs: { level: info, format: json }
+  otel: { endpoint: "{{env.OTEL_EXPORTER_OTLP_ENDPOINT}}" }
+  metrics: { prometheus: true }
+
+buffer: { type: memory, size: 10000 }       # memory | disk (bbolt WAL)

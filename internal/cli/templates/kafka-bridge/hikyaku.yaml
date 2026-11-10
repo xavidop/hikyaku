@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# kafka-bridge: HTTP events into a Kafka topic, and a topic out to a webhook.
+#
+# - ingest: POST /events lands on events.raw, keyed by customer, in batches
+#   (one produce per batch). With the brokers down, a file spool takes them.
+# - deliver: a consumer group reads orders and calls the fulfilment webhook,
+#   one partition's records in order. Offsets are committed only once a
+#   record is delivered or dead-lettered, so a restart resumes where it left.
+version: 1
+name: kafka-bridge
+
+sources:
+  - name: events
+    type: http
+    listen: ":8080"
+    path: /events
+  - name: orders
+    type: kafka
+    brokers: ["localhost:19092"]
+    topic: orders
+    group: kafka-bridge
+    start: earliest
+    ordering: {} # one partition's records in order
+
+destinations:
+  - name: raw
+    type: kafka
+    brokers: ["localhost:19092"]
+    topic: events.raw
+    key: "{{ .json.customer_id }}"
+    batch: { max_messages: 500, max_wait: 200ms }
+    retry: { attempts: 5, backoff: 200ms }
+    fallback: [spool]
+  - { name: spool, type: file, path: ./out/spool.ndjson }
+  - name: fulfilment
+    type: http
+    url: http://localhost:9000/fulfil
+    retry: { attempts: 5, backoff: 500ms }
+
+dead_letter: { type: file, path: ./out/dlq.ndjson }
+
+routes:
+  - { name: ingest, from: [events], to: [raw] }
+  - { name: deliver, from: [orders], to: [fulfilment] }
+
+server:
+  admin: { listen: ":9090" }

@@ -1,0 +1,12 @@
+{{- if not .Values.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hikyaku.configMapName" . }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+data:
+  hikyaku.yaml: |
+    {{- include "hikyaku.configYaml" . | nindent 4 }}
+{{- end }}

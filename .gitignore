@@ -1,0 +1,41 @@
+# Binaries and build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.txt
+coverage.out
+coverage.html
+/dist/
+bin/
+vendor/
+/completions/
+/cmd/hikyaku/hikyaku
+/hikyaku
+
+# Local state
+out/
+.hikyaku/
+.genkit/
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Docs site
+node_modules/
+site/dist/
+site/.astro/
+
+# Agents
+.superpowers/
+.claude/worktrees/
+.playwright-mcp/

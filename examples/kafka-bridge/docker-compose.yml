@@ -1,0 +1,12 @@
+# A one-node Redpanda (Kafka API on localhost:19092) for the kafka-bridge
+# example: docker compose up -d, then hikyaku run.
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.4
+    command:
+      - redpanda start
+      - --mode dev-container
+      - --smp 1
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports: ["19092:19092"]

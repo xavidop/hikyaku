@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The offline twin of hikyaku.yaml: the same AI router on deterministic fake
+# models (build with -tags llmfake: make build-llmfake). The first decision
+# model is down on purpose, so every decision walks the model fallback
+# chain; history lives in an in-process store.
+#
+#   ./bin/hikyaku route --dry-run -f hikyaku.llmfake.yaml --source webhooks --data @msg.json
+#   ./bin/hikyaku ai test -f hikyaku.llmfake.yaml --route triage --cases cases.yaml
+#   ./bin/hikyaku run -f hikyaku.llmfake.yaml
+version: 1
+name: ai-triage
+
+genkit:
+  plugins: [llmfake]
+
+models:
+  decision: llmfake-decisions/down # always down: the chain falls back
+  retry: { attempts: 2, backoff: 10ms, max_backoff: 50ms }
+  fallback:
+    decision: [llmfake-decisions/clef]
+
+sources:
+  - name: webhooks
+    type: http
+    listen: ":8080"
+    path: /events
+
+destinations:
+  - { name: billing, type: file, path: ./out/billing.ndjson }
+  - { name: support, type: file, path: ./out/support.ndjson }
+  - { name: oncall, type: file, path: ./out/oncall.ndjson, required: false }
+
+stores:
+  - { name: local, type: memory }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: triage
+    from: [webhooks]
+    router:
+      type: ai
+      # Only free-text customer messages reach the model; typed events
+      # (invoice.paid, ...) skip it for the rules below, with no model call.
+      when: has(msg.json.text)
+      engine: decision
+      instructions: |
+        You route customer events for a SaaS company. Pick the team(s) that must see it.
+      state: "{{ .bodyText }}"
+      state_json: true
+      candidates:
+        - { name: billing, description: "Payments, invoices, refunds, subscription changes" }
+        - { name: support, description: "Bugs, outages, errors, how-to questions, angry customers" }
+        - { name: oncall, description: "Outages and incidents on-call must see live" }
+      multi: true
+      min_confidence: 0.6
+      input: { max_bytes: 8KiB, redact: ["$.card.number", "$.email"] }
+      timeout: 4s
+      history:
+        store: local
+        key: "{{ .json.customer_id }}"
+        window: { max_entries: 10, max_age: 24h }
+        ttl: 7d
+        sticky: { enabled: true, follow_up_threshold: 0.8 }
+      on_low_confidence: [support]
+      fallback:
+        - type: rules
+          rules:
+            - { when: 'has(msg.json.type) && msg.json.type.startsWith("invoice.")', to: [billing] }
+        - type: static
+          to: [support]
+
+server:
+  admin: { listen: ":9090" }

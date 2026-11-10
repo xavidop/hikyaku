@@ -1,0 +1,224 @@
+name: Helm
+
+# The chart in charts/hikyaku.
+#
+# Tests, on pull requests and pushes to main that touch it:
+#   - helm lint --strict with the defaults and every ci/*-values.yaml, plus a
+#     render of what kind cannot install (Ingress, HTTPRoute, ServiceMonitor,
+#     the ollama sidecar);
+#   - ct lint (.github/ct.yaml): yamllint, the Chart.yaml schema and, on pull
+#     requests, a chart version bump;
+#   - ct install on kind, once per ci/*-values.yaml and then helm test, with an
+#     image built from this commit (ghcr.io/xavidop/hikyaku:ci).
+#     scripts/helm-test.sh (make helm-test) is the local equivalent.
+#
+# Publishing, for a release tag vX.Y.Z (a call from the Release workflow,
+# workflow_dispatch with `tag`, or a pushed v* tag):
+#   1. the chart is packaged at the release version: version and appVersion
+#      X.Y.Z, so the default image is ghcr.io/xavidop/hikyaku:X.Y.Z;
+#   2. chart-releaser attaches hikyaku-X.Y.Z.tgz to the vX.Y.Z GitHub Release
+#      GoReleaser made (instead of its own hikyaku-X.Y.Z release and tag) and
+#      adds it to index.yaml on the gh-pages branch;
+#   3. helm push publishes oci://ghcr.io/xavidop/charts/hikyaku:X.Y.Z;
+#   4. the Docs workflow redeploys the site, which serves index.yaml.
+#
+# semantic-release pushes its tags with GITHUB_TOKEN, and such a push starts
+# no workflow, so the Release workflow is expected to call this one:
+#
+#   helm:
+#     needs: release
+#     if: needs.release.outputs.published == 'true'
+#     permissions: {contents: write, packages: write, actions: write}
+#     uses: ./.github/workflows/helm.yml
+#     with:
+#       tag: ${{ needs.release.outputs.tag }}
+
+on:
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/ct.yaml"
+      - ".github/workflows/helm.yml"
+      - "scripts/helm-test.sh"
+      - "Dockerfile"
+  push:
+    branches: [main]
+    # Path filters do not apply to tag pushes.
+    tags: ["v*"]
+    paths:
+      - "charts/**"
+      - ".github/ct.yaml"
+      - ".github/workflows/helm.yml"
+      - "scripts/helm-test.sh"
+      - "Dockerfile"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "A released tag (vX.Y.Z) to publish the chart for. Empty runs the tests."
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      tag:
+        description: "The released tag (vX.Y.Z) to publish the chart for"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: helm lint + ct lint
+    if: inputs.tag == '' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # ct lint compares the chart with the target branch
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - name: helm lint
+        run: |
+          helm lint --strict charts/hikyaku
+          for f in charts/hikyaku/ci/*-values.yaml; do
+            echo "==> helm lint --strict -f $f"
+            helm lint --strict charts/hikyaku -f "$f"
+          done
+      - name: Render what kind cannot install
+        run: |
+          helm template hikyaku charts/hikyaku -f charts/hikyaku/ci/full-values.yaml \
+            --set ingress.enabled=true \
+            --set gatewayAPI.enabled=true \
+            --set 'gatewayAPI.parentRefs[0].name=public' \
+            --set serviceMonitor.enabled=true \
+            --set ollama.enabled=true \
+            --set 'ollama.models[0]=llama3.2' \
+            --set persistence.enabled=true \
+            --set redis.external.addr=redis.example.com:6379 >/dev/null
+      - uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
+      - name: ct lint
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            # Charts changed against main, with the version bump check.
+            ct lint --config .github/ct.yaml
+          else
+            # --charts turns the version bump check off: main is the baseline.
+            ct lint --config .github/ct.yaml --charts charts/hikyaku
+          fi
+
+  install:
+    name: ct install (kind)
+    if: inputs.tag == '' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: cmd/hikyaku/go.mod
+          cache-dependency-path: cmd/hikyaku/go.sum
+      # make docker's script: a linux build of cmd/hikyaku (GOWORK=off,
+      # CGO_ENABLED=0) laid out at linux/<arch>/hikyaku in dist/docker, the
+      # build context the Dockerfile expects, then docker build.
+      - name: Build ghcr.io/xavidop/hikyaku:ci
+        run: bash scripts/docker-build.sh ghcr.io/xavidop/hikyaku:ci
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          cluster_name: chart-testing
+      - name: Load the image into kind
+        run: kind load docker-image ghcr.io/xavidop/hikyaku:ci --name chart-testing
+      - name: ct install
+        run: |
+          ct install --config .github/ct.yaml --charts charts/hikyaku \
+            --helm-extra-set-args "--set image.tag=ci --set image.pullPolicy=Never"
+
+  release:
+    name: Publish the chart
+    if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # the chart on the GitHub Release, index.yaml on gh-pages
+      packages: write # oci://ghcr.io/xavidop/charts
+      actions: write # start the Docs workflow
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check the tag
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::the tag must look like vX.Y.Z, not $TAG"; exit 1; }
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0 # chart-releaser checks out gh-pages as a worktree
+          persist-credentials: true # and pushes index.yaml to it
+      - name: The GitHub Release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$TAG" --json tagName >/dev/null || {
+            echo "::error::there is no GitHub Release $TAG yet. GoReleaser creates it: run the Release workflow for $TAG, which calls this one."
+            exit 1
+          }
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - name: Package the chart at the release version
+        run: |
+          helm package charts/hikyaku --version "$VERSION" --app-version "$VERSION" \
+            --destination .cr-release-packages
+      - name: Prepare the gh-pages branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # chart-releaser reads index.yaml from origin/gh-pages, so the first
+          # release starts the branch with an empty commit.
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+            commit=$(git commit-tree "$(git hash-object -t tree /dev/null)" -m "Start the Helm chart repository")
+            git push origin "$commit:refs/heads/gh-pages"
+          fi
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages
+      - name: Attach the chart to the release and index it on gh-pages
+        uses: helm/chart-releaser-action@92c6b97fa9f664492a2592e0d1d80bc6bf378957 # v1.9.0
+        with:
+          skip_packaging: true
+          mark_as_latest: false
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # cr's own flags, as environment variables: name the release after
+          # the app (vX.Y.Z) and upload into it, replacing an earlier copy.
+          # (A repository with immutable releases refuses the upload.)
+          CR_RELEASE_NAME_TEMPLATE: "v{{ .Version }}"
+          CR_REPLACE_EXISTING: "true"
+      - name: Push the chart to ghcr.io
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$REGISTRY_TOKEN" | helm registry login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          helm push ".cr-release-packages/hikyaku-$VERSION.tgz" oci://ghcr.io/xavidop/charts
+      # The site is deployed by actions/deploy-pages, so the gh-pages branch
+      # is not served by itself: the Docs workflow copies its index.yaml into
+      # the site, at https://xavidop.github.io/hikyaku/index.yaml.
+      - name: Redeploy the docs site with the new index.yaml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --ref main

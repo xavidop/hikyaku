@@ -1,0 +1,33 @@
+apiVersion: v2
+name: hikyaku
+description: >-
+  hikyaku 飛脚, a YAML-configured message relay: it reads from one or more
+  endpoints and delivers to one or more endpoints over almost any protocol,
+  with an AI router and retries and fallbacks at every layer.
+type: application
+# The release workflow packages the chart at the release version (vX.Y.Z sets
+# both version and appVersion), so these are the values of an unreleased tree.
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+home: https://xavidop.github.io/hikyaku/
+icon: https://raw.githubusercontent.com/xavidop/hikyaku/main/assets/logo.png
+sources:
+  - https://github.com/xavidop/hikyaku
+maintainers:
+  - name: Xavier Portilla Edo
+    email: xavi_tb@hotmail.com
+    url: https://github.com/xavidop
+keywords:
+  - hikyaku
+  - relay
+  - message-relay
+  - webhooks
+  - websocket
+  - sse
+  - fan-out
+  - ai-router
+  - genkit
+  - retries
+annotations:
+  artifacthub.io/license: MIT

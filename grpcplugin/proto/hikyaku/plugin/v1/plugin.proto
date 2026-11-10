@@ -1,0 +1,231 @@
+// The protocol between hikyaku (the host) and an out-of-process plugin.
+//
+// hikyaku starts the plugin binary with hashicorp/go-plugin: the magic
+// cookie HIKYAKU_PLUGIN, protocol version 1, gRPC over a Unix socket with
+// AutoMTLS. The plugin serves this service (plus go-plugin's
+// grpc.health.v1.Health, GRPCController and GRPCStdio services).
+//
+// A plugin declares the kinds it serves with Describe. hikyaku opens one
+// handle per source or destination of the spec that uses one of those
+// kinds, and then calls the handle. Failures of a source or a sink travel
+// inside the responses (Error), not as gRPC statuses, so their class
+// survives; a gRPC status means the call itself failed (an unknown
+// handle, a dead plugin). The host's deadline crosses every call as the
+// gRPC deadline.
+syntax = "proto3";
+
+package hikyaku.plugin.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xavidop/hikyaku/grpcplugin/pluginpb;pluginpb";
+
+// Plugin is what an out-of-process plugin serves.
+service Plugin {
+  // Describe lists the kinds the plugin serves. hikyaku calls it once per
+  // launch.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+
+  // OpenSink builds a sink (a destination) of a declared kind.
+  rpc OpenSink(OpenSinkRequest) returns (OpenSinkResponse);
+  // Deliver makes one delivery attempt. hikyaku owns retries, timeouts,
+  // breakers and fallbacks.
+  rpc Deliver(DeliverRequest) returns (DeliverResponse);
+  // DeliverBatch delivers several messages in one native call. It is only
+  // called on handles opened with batch set; a plugin without it answers
+  // UNIMPLEMENTED and hikyaku delivers the messages one by one.
+  rpc DeliverBatch(DeliverBatchRequest) returns (DeliverResponse);
+  // SinkHealth reports whether the sink can deliver. It should be cheap.
+  rpc SinkHealth(HandleRequest) returns (HealthResponse);
+  // CloseSink flushes and releases a sink.
+  rpc CloseSink(HandleRequest) returns (CloseResponse);
+
+  // OpenSource builds a source of a declared kind.
+  rpc OpenSource(OpenSourceRequest) returns (OpenSourceResponse);
+  // StartSource runs the source and streams what it produces. The stream
+  // ends when the source runs out (OK), when it cannot go on (ABORTED, with
+  // the reason) or when hikyaku cancels the call (shutdown).
+  rpc StartSource(HandleRequest) returns (stream Envelope);
+  // Settle reports hikyaku's outcome for a streamed message, once per
+  // message: final true when the plugin may forget it (delivered,
+  // dead-lettered, unrouted or filtered; or, with ack "accepted", queued),
+  // false when it failed and should be redelivered.
+  rpc Settle(SettleRequest) returns (SettleResponse);
+  // SourceHealth reports whether the source is healthy.
+  rpc SourceHealth(HandleRequest) returns (HealthResponse);
+  // CloseSource releases a source once its messages are settled. Messages
+  // still unsettled are treated as failed (redeliver).
+  rpc CloseSource(HandleRequest) returns (CloseResponse);
+}
+
+message DescribeRequest {}
+
+message DescribeResponse {
+  repeated Kind kinds = 1;
+}
+
+// Role says whether a kind is a source or a sink (destination) type.
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_SOURCE = 1;
+  ROLE_SINK = 2;
+}
+
+// Kind is a type a plugin adds to hikyaku: usable as `type:` in sources
+// (ROLE_SOURCE) or destinations (ROLE_SINK), with its settings under
+// `options:`.
+message Kind {
+  string name = 1;
+  Role role = 2;
+  // description is a one-line summary for docs and the schema.
+  string description = 3;
+  // options_schema_json is the JSON Schema of the options: block (draft
+  // 2020-12 unless it says otherwise). hikyaku validate checks every block
+  // against it, and hikyaku schema includes it. Empty accepts any object.
+  string options_schema_json = 4;
+}
+
+message OpenSinkRequest {
+  string kind = 1;
+  // name is the destination name (for a group member, "<group>[<i>]"
+  // unless the member is named).
+  string name = 2;
+  // relay is the relay (spec) name.
+  string relay = 3;
+  // options_json is the entry's options: block as a JSON object.
+  string options_json = 4;
+}
+
+message OpenSinkResponse {
+  string handle = 1;
+  // batch is set when the sink takes DeliverBatch.
+  bool batch = 2;
+  // error is set when the sink could not be built (bad options).
+  Error error = 3;
+}
+
+message OpenSourceRequest {
+  string kind = 1;
+  // name is the source name.
+  string name = 2;
+  string relay = 3;
+  string options_json = 4;
+  // ack is the source's ack mode: "delivered" (the default) or "accepted".
+  // hikyaku calls Settle accordingly; the plugin may also use it to choose
+  // when it acknowledges upstream.
+  string ack = 5;
+}
+
+message OpenSourceResponse {
+  string handle = 1;
+  Error error = 2;
+}
+
+message HandleRequest {
+  string handle = 1;
+}
+
+message DeliverRequest {
+  string handle = 1;
+  Envelope envelope = 2;
+}
+
+message DeliverBatchRequest {
+  string handle = 1;
+  repeated Envelope envelopes = 2;
+}
+
+// DeliverResponse is a delivery's outcome: a result, an error, or neither
+// (delivered, nothing to report).
+message DeliverResponse {
+  oneof outcome {
+    Result result = 1;
+    Error error = 2;
+  }
+}
+
+message HealthResponse {
+  // error is set when the sink or source is unhealthy.
+  Error error = 1;
+}
+
+message CloseResponse {
+  Error error = 1;
+}
+
+message SettleRequest {
+  string handle = 1;
+  string envelope_id = 2;
+  bool final = 3;
+}
+
+message SettleResponse {}
+
+// HeaderValues are the values of one header.
+message HeaderValues {
+  repeated string values = 1;
+}
+
+// Trace is a W3C trace context.
+message Trace {
+  string traceparent = 1;
+  string tracestate = 2;
+}
+
+// Envelope is one message, as hikyaku's envelope package defines it.
+message Envelope {
+  // id is the message ID: the idempotency key on every attempt. A source
+  // that leaves it empty gets a new ULID.
+  string id = 1;
+  // source is the source name from the spec.
+  string source = 2;
+  // protocol is the protocol type of the source ("http", or a plugin kind).
+  string protocol = 3;
+  // subject is the path, topic, channel or routing key it came on.
+  string subject = 4;
+  map<string, HeaderValues> headers = 5;
+  string content_type = 6;
+  bytes body = 7;
+  // attributes_json is the envelope's attributes as a JSON object.
+  string attributes_json = 8;
+  google.protobuf.Timestamp received_at = 9;
+  Trace trace = 10;
+}
+
+// Result is what a sink got back from a successful delivery.
+message Result {
+  // status is the protocol status (an HTTP code), 0 when there is none.
+  int32 status = 1;
+  map<string, HeaderValues> headers = 2;
+  bytes body = 3;
+  string content_type = 4;
+  // endpoint names what served the delivery: a URL, a file, ...
+  string endpoint = 5;
+  // reroute holds destinations a downstream asked for (X-Hikyaku-Reroute).
+  repeated string reroute = 6;
+}
+
+// ErrorClass is the broad kind of a failure; retry policies act on it.
+enum ErrorClass {
+  // Transient failures may not happen again: a dropped connection, a 5xx.
+  // It is the default, so an unclassified error is retried.
+  ERROR_CLASS_TRANSIENT = 0;
+  // The endpoint asked to slow down; retry_after_ms says for how long.
+  ERROR_CLASS_RATE_LIMITED = 1;
+  // The failure will happen again: straight to the fallback or the DLQ.
+  ERROR_CLASS_PERMANENT = 2;
+  // The attempt ran out of time.
+  ERROR_CLASS_TIMEOUT = 3;
+}
+
+// Error is a classified failure.
+message Error {
+  ErrorClass class = 1;
+  // retry_after_ms is the endpoint's own hint, 0 when it gave none.
+  int64 retry_after_ms = 2;
+  // tags describe the failure from the broad to the exact ("5xx", "503",
+  // "connect", "timeout", "<protocol>:<code>"); retry.retry_on and
+  // retry.never_on match them.
+  repeated string tags = 3;
+  string message = 4;
+}

@@ -1,0 +1,251 @@
+name: Release
+
+# Releases are driven by Conventional Commits:
+#   0. A snapshot of the hikyaku CLI (the full and the lite build) is built and
+#      smoke-tested (`hikyaku version`, `init`, `validate`) before anything is
+#      tagged, and so is the Go module release (make release-check).
+#   1. semantic-release analyzes commits on main, decides the next version,
+#      updates CHANGELOG.md, and creates + pushes the git tag (vX.Y.Z).
+#   2. GoReleaser builds hikyaku and hikyaku-lite (CGO_ENABLED=0, cross-compiled
+#      for linux/darwin/windows on amd64/arm64) and creates the GitHub Release
+#      with the archives, deb/rpm/apk packages, checksums, SBOMs and the cosign
+#      signature, pushes the signed multi-arch image to ghcr.io, and updates the
+#      Homebrew cask and the Scoop manifest.
+#   3. SLSA provenance is generated for the released artifacts.
+#   4. helm.yml publishes the Helm chart at the same version (the release's
+#      tag push starts no workflow, so this one calls it).
+#   5. The Go modules get their tags (<dir>/vX.Y.Z), so `go install` and
+#      `go get` work outside a clone: see the modules job.
+#
+# Nothing in hikyaku needs CGO, so unlike tamesu there is no native build per
+# OS: GoReleaser cross-compiles both builds in the one job.
+#
+# Run it by hand with a tag (workflow_dispatch, input `tag`) to publish a tag
+# that already exists but has no GitHub Release, for instance after
+# GoReleaser failed: the tag is checked out and only steps 2 to 5 run.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag (vX.Y.Z) to publish with GoReleaser, skipping semantic-release"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# One release at a time: two runs started by quick pushes would race for the
+# same version. Never cancel one in progress: a half-published release is
+# worse than a queued one.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Version, build & publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create tags, releases, and commit the changelog
+      id-token: write # keyless signing (cosign)
+      packages: write # the image on ghcr.io
+    env:
+      RETAG: ${{ inputs.tag }}
+    outputs:
+      published: ${{ inputs.tag != '' && 'true' || steps.semantic.outputs.new_release_published }}
+      tag: ${{ inputs.tag != '' && inputs.tag || steps.semantic.outputs.new_release_git_tag }}
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history so semantic-release can analyze commits
+          persist-credentials: true # semantic-release pushes the changelog commit and the tag
+          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
+
+      - name: Check the tag to publish
+        if: env.RETAG != ''
+        run: |
+          [[ "$RETAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must look like vX.Y.Z"; exit 1; }
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RETAG^{commit}")"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24 # semantic-release runs on it
+
+      - name: Install Syft (SBOM)
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+
+      # cosign-installer v3 installs cosign v2, whose sign-blob writes the
+      # .sig/.pem pair .goreleaser.yaml publishes and the release notes verify.
+      - name: Install cosign (signatures)
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      # dockers_v2 builds the linux/amd64 + linux/arm64 image with buildx, which
+      # needs a builder that can build for several platforms. The Dockerfile
+      # only copies files, so no QEMU emulation is needed.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 0. Smoke-test a snapshot build for this runner BEFORE semantic-release
+      #    runs: semantic-release pushes the tag and the CHANGELOG commit as
+      #    soon as it runs, so a binary that does not start must stop the job
+      #    while nothing has been tagged or published yet. (Casks have no test
+      #    block, so this is the only check that the released binary runs.)
+      - name: Build a snapshot for the smoke test
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --snapshot --clean --single-target
+
+      - name: Smoke-test the snapshot binaries
+        run: |
+          full=$(find "$PWD/dist" -type f -name hikyaku -path '*/hikyaku_*' | head -n 1)
+          lite=$(find "$PWD/dist" -type f -name hikyaku -path '*/hikyaku-lite_*' | head -n 1)
+          test -n "$full" && test -n "$lite"
+          "$full" version
+          "$lite" version
+          d=$(mktemp -d) && cd "$d" && "$full" init && "$full" validate -f hikyaku.yaml
+
+      # The Go module release, cut in a scratch clone at a throwaway version and
+      # installed from outside it (go install, full and lite, and a custom
+      # build), so a release whose modules would not install stops here too.
+      - name: Check the Go module release
+        if: env.RETAG == ''
+        run: make release-check
+
+      # 1. Determine the next version, update CHANGELOG.md, create and push the tag.
+      - name: Semantic Release
+        id: semantic
+        if: env.RETAG == ''
+        uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
+        with:
+          semantic_version: 24
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/git@10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Build and publish the GitHub Release for the tag semantic-release created.
+      - name: Run GoReleaser
+        if: env.RETAG != '' || steps.semantic.outputs.new_release_published == 'true'
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Homebrew cask is committed to xavidop/homebrew-tap, a
+          # different repository, which GITHUB_TOKEN cannot write to.
+          # HOMEBREW_TAP_TOKEN must be a PAT (or GitHub App token) with
+          # contents:write on the tap repo. The fallback keeps the variable
+          # defined: .goreleaser.yaml interpolates it, and an undefined env var
+          # there is a template error that would fail the ENTIRE release.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
+          # The Scoop manifest goes to xavidop/scoop-bucket the same way. A PAT
+          # that covers both repositories can be set as HOMEBREW_TAP_TOKEN alone.
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN || secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # 3. Export the artifact hashes for the provenance job.
+      - name: Export artifact hashes
+        id: hashes
+        if: env.RETAG != '' || steps.semantic.outputs.new_release_published == 'true'
+        run: echo "hashes=$(base64 -w0 < dist/checksums.txt)" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    name: SLSA provenance
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    # Referenced by its release tag, not a SHA: the generator verifies its own
+    # ref, and only a vX.Y.Z tag passes.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.release.outputs.hashes }}
+      upload-assets: true
+      upload-tag-name: ${{ needs.release.outputs.tag }}
+      provenance-name: hikyaku.intoto.jsonl
+
+  # semantic-release pushes its tag with GITHUB_TOKEN, and such a push starts no
+  # workflow, so the chart is published from here: helm.yml attaches it to the
+  # GitHub Release GoReleaser made, indexes it on gh-pages, pushes it to
+  # oci://ghcr.io/xavidop/charts and redeploys the docs site, which serves the
+  # index.
+  helm:
+    name: Helm chart
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: write # the chart on the GitHub Release, index.yaml on gh-pages
+      packages: write # oci://ghcr.io/xavidop/charts
+      actions: write # start the Docs workflow
+    uses: ./.github/workflows/helm.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+
+  # semantic-release tags the root module (vX.Y.Z). On main the other modules
+  # require their siblings through replace directives, which go install
+  # refuses and a module outside a clone cannot use. internal/tools/release
+  # writes a release commit on top of vX.Y.Z, on no branch, where every module
+  # requires its siblings at vX.Y.Z, and tags each module <dir>/vX.Y.Z there.
+  # The release commit follows from vX.Y.Z's commit, so a re-run makes the same
+  # commit and the tags it pushed before still match.
+  modules:
+    name: Go module tags
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the module tags
+    env:
+      GOWORK: off
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the commit vX.Y.Z names, and every tag
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: true # the module tags are pushed with it
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+
+      - name: Write the release commit and tag the modules
+        run: go -C internal/tools run ./release -version "$TAG" -commit "$TAG" -proxy "$RUNNER_TEMP/goproxy" >"$RUNNER_TEMP/tags"
+
+      - name: Install the release from its own proxy before pushing
+        run: bash scripts/release-check.sh --version "$TAG" --proxy "$RUNNER_TEMP/goproxy"
+
+      - name: Push the module tags
+        run: |
+          refs=()
+          while read -r tag; do refs+=("refs/tags/$tag"); done <"$RUNNER_TEMP/tags"
+          git push origin "${refs[@]}"
+
+      # The same checks through proxy.golang.org and the checksum database, which
+      # build the zips from the tags just pushed: a go.sum hash that differs
+      # from theirs fails here.
+      - name: Install the release from proxy.golang.org
+        run: bash scripts/release-check.sh --version "$TAG" --public

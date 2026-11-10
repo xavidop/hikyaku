@@ -1,0 +1,59 @@
+name: Protocol request
+description: Request (or volunteer to build) a protocol as a source or a destination (a broker, a cloud queue, a socket, ...)
+labels: [protocol, triage]
+body:
+  - type: input
+    id: protocol
+    attributes:
+      label: Protocol or system
+      placeholder: "Kafka, NATS JetStream, MQTT v5, RabbitMQ, SQS, Pub/Sub, a TCP socket, ..."
+    validations:
+      required: true
+  - type: checkboxes
+    id: role
+    attributes:
+      label: Source or destination?
+      description: A source reads messages into hikyaku; a destination is where hikyaku delivers them.
+      options:
+        - label: Source
+        - label: Destination
+    validations:
+      required: true
+  - type: checkboxes
+    id: modes
+    attributes:
+      label: Source modes
+      description: How hikyaku would read from it. Skip this for a destination only.
+      options:
+        - label: Listen (hikyaku serves an endpoint the producer calls)
+        - label: Poll (hikyaku fetches on an interval)
+        - label: Subscribe (hikyaku holds a connection or a consumer)
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Where the protocol would fit. Brokers came in M2 and clouds in M3; a new one is a later release.
+      options:
+        - M2 (brokers, planned)
+        - M3 (cloud, planned)
+        - Not on the protocol matrix yet
+    validations:
+      required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: Go SDK or protocol documentation
+      description: Link to the Go SDK, or the protocol specification if there is no SDK.
+  - type: textarea
+    id: semantics
+    attributes:
+      label: How are messages acknowledged, ordered and retried?
+      description: Ack or commit semantics, ordering guarantees, redelivery, headers or metadata the envelope should carry, and the errors a destination returns (so retry policies can match them).
+    validations:
+      required: true
+  - type: checkboxes
+    id: volunteer
+    attributes:
+      label: Are you volunteering to build it?
+      options:
+        - label: I'd like to implement this protocol as its own module under protocols/<name>, registered in cmd/hikyaku/wiring.go, with unit tests and a container suite under -tags integration.

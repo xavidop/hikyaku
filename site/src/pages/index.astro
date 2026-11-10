@@ -1,0 +1,664 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const base = import.meta.env.BASE_URL;
+const repo = "https://github.com/xavidop/hikyaku";
+
+// Bodies are trusted, static HTML so keys can render as <code>.
+const features = [
+  {
+    tag: "protocols",
+    title: "Many protocols, one envelope",
+    body: "HTTP, WebSocket, SSE, gRPC, TCP/UDP, Kafka, NATS, MQTT, RabbitMQ, Redis, SQS/SNS/EventBridge, S3, Pub/Sub, GCS, Service Bus and Event Hubs. Sources listen, poll or subscribe, and acknowledge their broker only once a message is delivered or dead-lettered.",
+  },
+  {
+    tag: "ai router",
+    title: "Routing that knows how sure it is",
+    body: "System One decision models by default: typed answers with calibrated probabilities, so <code>min_confidence</code> means something, and one request asks about every candidate. Or any Genkit generative model through <code>GenerateData</code>.",
+  },
+  {
+    tag: "history",
+    title: "It remembers the last call",
+    body: "Past calls live in Redis and reach the model as conversation turns. Follow-ups stick to where the last message went, and corrections teach it per customer. If Redis is down, routing carries on without it.",
+  },
+  {
+    tag: "resilience",
+    title: "Nothing dropped silently",
+    body: "Retries with jitter and <code>Retry-After</code>, deadlines, circuit breakers, retry budgets, fallback chains, failover groups, hedging, model and router fallbacks, and a dead-letter queue with its own fallback and replay.",
+  },
+  {
+    tag: "one binary",
+    title: "A CLI, a container, a Helm chart",
+    body: "Run it on your machine with <code>hikyaku run</code>, ship the distroless image, or install the Helm chart with probes, a ServiceMonitor and a Gateway API route. The same spec everywhere.",
+  },
+  {
+    tag: "safe by default",
+    title: "Declared, redacted, guarded",
+    body: "Secrets are mamori refs, redacted from logs and <code>/debug</code>. The AI only picks destinations the spec declares, states are redacted before a model sees them, and templated hosts pass an SSRF guard.",
+  },
+];
+
+const docs = [
+  { href: "docs/concepts/", title: "Concepts", body: "Sources, destinations, routes, the envelope and when a message is acked." },
+  { href: "docs/spec/", title: "The spec", body: "A guided tour of hikyaku.yaml: secrets, templates, multiple files, validation." },
+  { href: "docs/routing/", title: "Routing and the AI router", body: "Static, rules, sticky and AI routers, thresholds, shadow mode, model fallbacks." },
+  { href: "docs/resilience/", title: "Retries and fallbacks", body: "Every retry policy and fallback chain, the DLQ, replay and the metrics." },
+  { href: "docs/cli/", title: "CLI reference", body: "run, validate, route --dry-run, ai test, chaos, dlq, history and the rest." },
+  { href: "docs/deploy/", title: "Deploy", body: "The container image, the Helm chart and running several replicas on one Redis." },
+];
+
+// The snippets are rendered with set:html: Astro would otherwise read the
+// {{secrets.X}} templates and the flow-style YAML braces as expressions.
+const heroYaml = `<span class="k">version</span>: <span class="n">1</span>
+<span class="k">name</span>: <span class="s">support-intake</span>
+<span class="k">sources</span>:
+  - { <span class="k">name</span>: <span class="s">webhooks</span>, <span class="k">type</span>: <span class="s">http</span>, <span class="k">mode</span>: <span class="s">listen</span>, <span class="k">listen</span>: <span class="s">":8080"</span>, <span class="k">path</span>: <span class="s">/ingest</span> }
+<span class="k">destinations</span>:
+  - { <span class="k">name</span>: <span class="s">billing</span>, <span class="k">type</span>: <span class="s">https</span>, <span class="k">url</span>: <span class="s">https://billing.internal/events</span>, <span class="k">fallback</span>: [<span class="s">billing-dr</span>] }
+  - { <span class="k">name</span>: <span class="s">billing-dr</span>, <span class="k">type</span>: <span class="s">https</span>, <span class="k">url</span>: <span class="s">https://billing-dr.internal/events</span> }
+  - { <span class="k">name</span>: <span class="s">support</span>, <span class="k">type</span>: <span class="s">https</span>, <span class="k">url</span>: <span class="s">https://support.internal/hook</span> }
+<span class="k">routes</span>:
+  - <span class="k">name</span>: <span class="s">triage</span>
+    <span class="k">from</span>: [<span class="s">webhooks</span>]
+    <span class="k">router</span>:
+      <span class="k">type</span>: <span class="s">ai</span>                          <span class="c"># a System One decision model</span>
+      <span class="k">model</span>: <span class="s">typesafe/jev-1.13.0</span>
+      <span class="k">candidates</span>:
+        - { <span class="k">name</span>: <span class="s">billing</span>, <span class="k">description</span>: <span class="s">"Payments, invoices, refunds"</span> }
+        - { <span class="k">name</span>: <span class="s">support</span>, <span class="k">description</span>: <span class="s">"Bugs, outages, how-to questions"</span> }
+      <span class="k">min_confidence</span>: <span class="n">0.6</span>
+      <span class="k">on_low_confidence</span>: [<span class="s">support</span>]
+      <span class="k">fallback</span>:                         <span class="c"># ai ▸ rules ▸ static</span>
+        - { <span class="k">type</span>: <span class="s">rules</span>, <span class="k">rules</span>: [{ <span class="k">when</span>: <span class="s">'msg.json.type.startsWith("invoice.")'</span>, <span class="k">to</span>: [<span class="s">billing</span>] }] }
+        - { <span class="k">type</span>: <span class="s">static</span>, <span class="k">to</span>: [<span class="s">support</span>] }`;
+
+const quickShell = `<span class="c">$</span> <span class="f">brew</span> install xavidop/tap/hikyaku
+<span class="c">$</span> <span class="f">hikyaku</span> init <span class="k">--template</span> webhook-fanout   <span class="c"># hikyaku.yaml</span>
+<span class="c">$</span> <span class="f">hikyaku</span> validate                         <span class="c"># refs, cycles, CEL, templates</span>
+<span class="c">$</span> <span class="f">hikyaku</span> run                              <span class="c"># sources on :8080, admin on :9090</span>
+<span class="c">$</span> <span class="f">curl</span> localhost:8080/ingest <span class="k">-d</span> <span class="s">'{"type":"invoice.paid"}'</span>`;
+
+const aiShell = `<span class="c">$</span> <span class="f">make</span> build-llmfake                 <span class="c"># a fake decision model, no key</span>
+<span class="c">$</span> <span class="f">./bin/hikyaku</span> route <span class="k">--dry-run</span> \\
+    <span class="k">-f</span> examples/ai-triage/hikyaku.llmfake.yaml \\
+    <span class="k">--source</span> webhooks <span class="k">--data</span> @examples/ai-triage/msg.json`;
+---
+
+<Layout>
+  <section class="hero section">
+    <div class="wrap hero__grid">
+      <div class="hero__inner">
+        <img class="hero__wordmark only-light" src={`${base}brand/hikyaku-wordmark-light.svg`} alt="hikyaku 飛脚" width="240" height="80" />
+        <img class="hero__wordmark only-dark" src={`${base}brand/hikyaku-wordmark-dark.svg`} alt="hikyaku 飛脚" width="240" height="80" />
+        <p class="eyebrow">A YAML-configured message relay</p>
+        <h1>Read from one or more endpoints. Deliver to one or more endpoints.</h1>
+        <p class="hero__lede">
+          Over almost any protocol, from one YAML spec, with an AI router and retries and
+          fallbacks at every layer.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href={`${base}docs/quickstart/`}>Quick start</a>
+          <a class="btn btn--ghost" href={`${base}docs/`}>Read the docs</a>
+          <a class="btn btn--ghost" href={repo} target="_blank" rel="noopener">View on GitHub</a>
+        </div>
+        <p class="hero__install"><code>brew install xavidop/tap/hikyaku</code></p>
+        <p class="hero__note">
+          Homebrew is for macOS. On Linux and Windows, use a <a href={`${base}docs/install/`}>package, Scoop or a release archive</a>,
+          or run <code>ghcr.io/xavidop/hikyaku</code>.
+        </p>
+      </div>
+      <figure class="window" aria-label="A hikyaku.yaml with an AI route and its fallbacks">
+        <div class="window__bar" aria-hidden="true">
+          <span class="window__dot"></span>
+          <span class="window__dot"></span>
+          <span class="window__dot"></span>
+          <span class="window__title">hikyaku.yaml</span>
+        </div>
+        <pre class="code window__code" set:html={heroYaml} />
+      </figure>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow">How it works</p>
+        <h2>Source to envelope to router chain to every destination, with a fallback at each step</h2>
+      </div>
+      <figure class="arch">
+        <svg
+          class="arch__svg"
+          viewBox="0 0 1200 484"
+          role="img"
+          aria-labelledby="arch-title arch-desc"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <title id="arch-title">How a message travels through hikyaku</title>
+          <desc id="arch-desc">
+            Sources over http, ws, sse, stdin and file feed the Source stage, which listens, polls or
+            subscribes and reconnects with backoff. Each message becomes an envelope, goes through
+            filters and transforms, then a router chain of ai, rules and static routers. The AI router
+            asks Genkit Go: System One decision models or GenerateData on any model, with model retries
+            and fallbacks. Delivery applies a timeout, retries with Retry-After, a circuit breaker, a
+            retry budget and a fallback chain to each destination: billing falls back to billing-dr,
+            support is a failover group, and the dashboard is best-effort. What fails everywhere goes
+            to the dead-letter queue, which has its own fallback and can be replayed. The admin API
+            serves health, readiness, metrics and reload.
+          </desc>
+          <defs>
+            <marker id="arch-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="arch-head" d="M0 0 L10 5 L0 10 z"></path>
+            </marker>
+            <marker id="arch-arrow-sage" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="arch-head arch-head--sage" d="M0 0 L10 5 L0 10 z"></path>
+            </marker>
+          </defs>
+
+          <text class="arch-l" x="16" y="36">SOURCES</text>
+          <text class="arch-l" x="984" y="36">DESTINATIONS</text>
+
+          <!-- sources -->
+          <g class="arch-src">
+            <rect x="16" y="68" width="140" height="32" rx="16"></rect>
+            <circle cx="36" cy="84" r="6"></circle>
+            <text class="arch-s arch-s--ink" x="50" y="88">http · https</text>
+            <rect x="16" y="112" width="140" height="32" rx="16"></rect>
+            <circle cx="36" cy="128" r="6"></circle>
+            <text class="arch-s arch-s--ink" x="50" y="132">ws · wss</text>
+            <rect x="16" y="156" width="140" height="32" rx="16"></rect>
+            <circle cx="36" cy="172" r="6"></circle>
+            <text class="arch-s arch-s--ink" x="50" y="176">sse</text>
+            <rect x="16" y="200" width="140" height="32" rx="16"></rect>
+            <circle cx="36" cy="216" r="6"></circle>
+            <text class="arch-s arch-s--ink" x="50" y="220">stdin · file</text>
+          </g>
+          <g class="arch-line">
+            <path d="M156 84 C 184 84, 184 150, 206 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M156 128 C 184 128, 184 150, 206 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M156 172 C 184 172, 184 150, 206 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M156 216 C 184 216, 184 150, 206 150" marker-end="url(#arch-arrow)"></path>
+          </g>
+
+          <!-- the relay -->
+          <rect class="arch-frame" x="184" y="28" width="768" height="432" rx="24"></rect>
+          <text class="arch-name" x="208" y="66">hikyaku</text>
+          <text class="arch-kanji" x="288" y="66">飛脚</text>
+
+          <g class="arch-node">
+            <rect x="208" y="117" width="200" height="66" rx="14"></rect>
+            <text class="arch-t" x="226" y="145">Source</text>
+            <text class="arch-s" x="226" y="166">listen · poll · subscribe</text>
+            <rect x="432" y="117" width="112" height="66" rx="14"></rect>
+            <text class="arch-t" x="450" y="145">Envelope</text>
+            <text class="arch-s" x="450" y="166">CloudEvents</text>
+            <rect x="568" y="117" width="168" height="66" rx="14"></rect>
+            <text class="arch-t" x="586" y="145">Transforms</text>
+            <text class="arch-s" x="586" y="166">CEL · jq · templates</text>
+          </g>
+          <g class="arch-node arch-node--router">
+            <rect x="760" y="117" width="168" height="66" rx="14"></rect>
+            <path class="arch-spark" transform="translate(784 140) scale(0.3636) translate(-128 -128)" d="M128 106 Q131.5 124.5 150 128 Q131.5 131.5 128 150 Q124.5 131.5 106 128 Q124.5 124.5 128 106 Z"></path>
+            <text class="arch-t" x="800" y="145">Router chain</text>
+            <text class="arch-s" x="778" y="166">ai ▸ rules ▸ static</text>
+          </g>
+          <g class="arch-line">
+            <path d="M408 150 L 430 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M544 150 L 566 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M736 150 L 758 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M844 183 L 844 218" marker-end="url(#arch-arrow)"></path>
+          </g>
+
+          <!-- the AI step -->
+          <g class="arch-ai">
+            <rect x="700" y="220" width="228" height="88" rx="14"></rect>
+            <text class="arch-t arch-t--ai" x="718" y="244">Genkit Go</text>
+            <text class="arch-s" x="718" y="265">System One decision models</text>
+            <text class="arch-s" x="718" y="281">or GenerateData on any model</text>
+            <text class="arch-s" x="718" y="297">retries + model fallbacks</text>
+          </g>
+
+          <!-- source-side resilience -->
+          <path class="arch-line arch-line--soft" d="M352 183 C 352 222, 244 222, 244 187" marker-end="url(#arch-arrow-sage)"></path>
+          <text class="arch-s" x="208" y="250">reconnect · backoff · failover URLs</text>
+          <text class="arch-s" x="208" y="268">backpressure: 503 + Retry-After</text>
+
+          <!-- delivery -->
+          <g class="arch-node">
+            <rect x="208" y="336" width="720" height="56" rx="14"></rect>
+            <text class="arch-t" x="228" y="369">Delivery</text>
+            <text class="arch-s arch-s--ink" x="312" y="368">timeout ▸ retry + Retry-After ▸ breaker ▸ budget ▸ fallback chain ▸ DLQ</text>
+          </g>
+          <text class="arch-s" x="228" y="432">Admin API /healthz /readyz /metrics /reload · OTel traces · Prometheus</text>
+
+          <!-- destinations -->
+          <g class="arch-line">
+            <path d="M928 150 C 958 150, 954 78, 982 78" marker-end="url(#arch-arrow)"></path>
+            <path d="M928 150 L 982 150" marker-end="url(#arch-arrow)"></path>
+            <path d="M928 150 C 958 150, 954 222, 982 222" marker-end="url(#arch-arrow)"></path>
+          </g>
+          <g class="arch-dest">
+            <rect x="984" y="50" width="200" height="56" rx="12"></rect>
+            <text class="arch-t" x="1002" y="74">billing</text>
+            <text class="arch-s" x="1002" y="94">fallback ▸ billing-dr</text>
+            <rect x="984" y="122" width="200" height="56" rx="12"></rect>
+            <text class="arch-t" x="1002" y="146">support</text>
+            <text class="arch-s" x="1002" y="166">group: failover a → b</text>
+            <rect class="arch-dashed" x="984" y="194" width="200" height="56" rx="12"></rect>
+            <text class="arch-t" x="1002" y="218">dashboard</text>
+            <text class="arch-s" x="1002" y="238">best-effort</text>
+          </g>
+          <path class="arch-line arch-line--dashed" d="M928 364 L 982 364" marker-end="url(#arch-arrow)"></path>
+          <g class="arch-dest">
+            <rect class="arch-dashed" x="984" y="336" width="200" height="56" rx="12"></rect>
+            <text class="arch-t" x="1002" y="360">dead letters</text>
+            <text class="arch-s" x="1002" y="380">own fallback · replay</text>
+          </g>
+        </svg>
+      </figure>
+      <p class="arch__caption">
+        Every layer has a retry policy and a fallback: destinations fall back to other destinations,
+        models to other models, the AI router to CEL rules and a static catch-all, and the
+        dead-letter queue to stdout. <a href={`${base}docs/concepts/`}>Concepts</a> walks through it.
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow">Why hikyaku</p>
+        <h2>A relay you can leave running</h2>
+      </div>
+      <div class="features">
+        {features.map((f) => (
+          <div class="card feature">
+            <p class="feature__tag">{f.tag}</p>
+            <h3>{f.title}</h3>
+            <p set:html={f.body} />
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow">Quick start</p>
+        <h2>A webhook that fans out, then a route an AI decides</h2>
+      </div>
+      <div class="quick">
+        <div class="quick__col">
+          <pre class="code" set:html={quickShell} />
+          <p>
+            <code>hikyaku init</code> scaffolds the spec, <code>validate</code> checks it, and the
+            webhook you post reaches every destination of the route. The
+            <a href={`${base}docs/quickstart/`}>quick start</a> goes step by step.
+          </p>
+        </div>
+        <div class="quick__col">
+          <pre class="code" set:html={aiShell} />
+          <p>
+            The <code>ai-triage</code> example routes on a fake decision model, so it runs with no
+            key: the dry run prints the router, the model, each candidate's probability and the
+            fallback hops it would take. See <a href={`${base}docs/routing/`}>Routing</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow">Documentation</p>
+        <h2>Where to go next</h2>
+      </div>
+      <div class="doclinks">
+        {docs.map((d) => (
+          <a class="card doclink" href={`${base}${d.href}`}>
+            <h3>{d.title}</h3>
+            <p>{d.body}</p>
+            <span class="doclink__go" aria-hidden="true">Read →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .hero {
+    padding-block: clamp(3rem, 7vw, 6rem) 1.5rem;
+  }
+  .hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: center;
+  }
+  @media (max-width: 1080px) {
+    .hero__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .hero__inner {
+    max-width: 640px;
+  }
+  .hero__wordmark {
+    display: block;
+    width: auto;
+    height: clamp(64px, 8vw, 84px);
+    margin-bottom: 1.6rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 1.5rem + 2.2vw, 3.4rem);
+    line-height: 1.06;
+    margin: 0.6rem 0 1.2rem;
+  }
+  .hero__lede {
+    color: var(--muted);
+    font-size: var(--step-1);
+    max-width: 52ch;
+    margin: 0 0 1.8rem;
+  }
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-bottom: 1.6rem;
+  }
+  .hero__install {
+    margin: 0 0 1.2rem;
+  }
+  .hero__install code {
+    display: inline-block;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--code-bg);
+    color: var(--ink);
+    font-size: 0.95rem;
+  }
+  .hero__note {
+    color: var(--muted);
+    font-size: var(--step--1);
+    margin: -0.4rem 0 0;
+    max-width: 60ch;
+  }
+  .hero__note code {
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-3);
+    color: var(--ink);
+  }
+  .hero__note a,
+  .arch__caption a,
+  .quick__col a {
+    color: var(--rail-deep);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--rail) 55%, transparent);
+    text-underline-offset: 3px;
+  }
+
+  /* The editor window around the hero spec: the page's own code surface,
+     so it follows the theme like every other code block. */
+  .window {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--code-bg);
+    box-shadow: 0 28px 56px -24px rgba(var(--shadow), 0.38);
+  }
+  .window__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.9rem;
+    background: var(--bg-3);
+    border-bottom: 1px solid var(--line);
+  }
+  .window__dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--rail);
+  }
+  .window__dot:nth-child(2) {
+    background: var(--honey);
+  }
+  .window__dot:nth-child(3) {
+    background: var(--sage);
+  }
+  .window__title {
+    flex: 1;
+    margin-right: 2.4rem;
+    color: var(--muted-2);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-align: center;
+  }
+  .window__code {
+    border: 0;
+    border-radius: 0;
+    font-size: 0.76rem;
+    line-height: 1.7;
+    padding: 1.1rem 1.3rem 1.3rem;
+  }
+
+  .section--tight {
+    padding-block: clamp(2.5rem, 1.8rem + 2.8vw, 4.5rem);
+  }
+
+  /* The diagram scrolls inside its own frame on a narrow screen rather than
+     shrinking its labels below legibility; the page itself never scrolls
+     sideways. */
+  .arch {
+    margin: 0;
+    padding: clamp(0.75rem, 2vw, 1.5rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-3);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .arch__svg {
+    display: block;
+    width: 100%;
+    min-width: 860px;
+    height: auto;
+  }
+  .arch__caption {
+    max-width: 72ch;
+    margin: 1.2rem 0 0;
+    color: var(--muted);
+    font-size: var(--step--1);
+  }
+  .arch-l {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    fill: var(--muted-2);
+  }
+  .arch-t {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 650;
+    fill: var(--ink);
+  }
+  .arch-t--ai {
+    fill: var(--ai);
+  }
+  .arch-s {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--muted-2);
+  }
+  .arch-s--ink {
+    fill: var(--muted);
+  }
+  .arch-name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    fill: var(--ink);
+  }
+  .arch-kanji {
+    font-size: 16px;
+    font-weight: 600;
+    fill: var(--signal);
+  }
+  .arch-frame {
+    fill: var(--bg-2);
+    stroke: var(--line-strong);
+    stroke-width: 1.5;
+  }
+  .arch-node rect,
+  .arch-dest rect,
+  .arch-src rect {
+    fill: var(--bg);
+    stroke: var(--line-strong);
+    stroke-width: 1.5;
+  }
+  .arch-src circle {
+    fill: var(--sage);
+  }
+  .arch-node--router rect {
+    stroke: var(--rail);
+    stroke-width: 2;
+  }
+  .arch-spark {
+    fill: var(--honey);
+  }
+  .arch-ai rect {
+    fill: var(--honey-soft);
+    stroke: color-mix(in srgb, var(--honey) 70%, var(--line-strong));
+    stroke-width: 1.5;
+  }
+  .arch-dest rect.arch-dashed {
+    stroke-dasharray: 6 5;
+  }
+  .arch-line,
+  .arch-line path {
+    fill: none;
+    stroke: var(--rail);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .arch-line--soft {
+    stroke: var(--sage);
+  }
+  .arch-line--dashed {
+    stroke-dasharray: 6 5;
+  }
+  .arch-head {
+    fill: var(--rail);
+  }
+  .arch-head--sage {
+    fill: var(--sage);
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2rem;
+  }
+  @media (max-width: 980px) {
+    .features {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 640px) {
+    .features {
+      grid-template-columns: 1fr;
+    }
+  }
+  .feature h3 {
+    font-size: var(--step-1);
+    margin: 0 0 0.5rem;
+  }
+  .feature p {
+    color: var(--muted);
+    margin: 0;
+  }
+  .feature .feature__tag {
+    margin: 0 0 0.9rem;
+    color: var(--signal);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .feature :global(code),
+  .quick__col :global(p code) {
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-3);
+    color: var(--ink);
+    font-size: 0.88em;
+    white-space: nowrap;
+  }
+
+  .quick {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.2rem;
+    align-items: start;
+  }
+  @media (max-width: 960px) {
+    .quick {
+      grid-template-columns: 1fr;
+    }
+  }
+  .quick__col {
+    display: grid;
+    gap: 1rem;
+  }
+  .quick pre.code {
+    font-size: 0.8rem;
+  }
+  .quick__col p {
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .doclinks {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2rem;
+  }
+  @media (max-width: 980px) {
+    .doclinks {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 640px) {
+    .doclinks {
+      grid-template-columns: 1fr;
+    }
+  }
+  .doclink {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .doclink h3 {
+    font-size: var(--step-0);
+    margin: 0;
+  }
+  .doclink p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 0.95rem;
+  }
+  .doclink__go {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--rail-deep);
+  }
+</style>

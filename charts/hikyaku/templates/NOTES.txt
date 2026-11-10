@@ -1,0 +1,55 @@
+{{- $fullname := include "hikyaku.fullname" . -}}
+{{- $admin := include "hikyaku.componentName" (dict "root" . "suffix" "admin") -}}
+{{- $ns := .Release.Namespace -}}
+hikyaku {{ .Values.image.tag | default .Chart.AppVersion }} runs as the {{ include "hikyaku.workloadKind" . }} {{ $fullname }} in namespace {{ $ns }}.
+
+Spec: {{ if .Values.existingConfigMap }}ConfigMap {{ .Values.existingConfigMap }} (key hikyaku.yaml){{ else if include "hikyaku.usesDefaultConfig" . }}the chart's built-in example (POST /ingest on the http port, logged to stdout){{ else }}values.config{{ end }}, mounted at /etc/hikyaku/hikyaku.yaml.
+{{- if .Values.persistence.enabled }}
+Each replica keeps /var/lib/hikyaku on its own PersistentVolumeClaim ({{ .Values.persistence.size }}).
+{{- else }}
+/var/lib/hikyaku is an emptyDir: file DLQs there go away with the pod. Set persistence.enabled=true to keep them.
+{{- end }}
+
+Admin API (/healthz, /readyz, /metrics):
+  kubectl -n {{ $ns }} port-forward svc/{{ $admin }} {{ int .Values.adminPort }}:{{ int .Values.adminPort }}
+  curl -s http://127.0.0.1:{{ int .Values.adminPort }}/readyz
+{{- if .Values.extraPorts }}
+{{- $first := first .Values.extraPorts }}
+{{- $svcPort := int ($first.servicePort | default $first.port) }}
+
+Sources:
+  kubectl -n {{ $ns }} port-forward svc/{{ $fullname }} {{ $svcPort }}:{{ $svcPort }}
+{{- if include "hikyaku.usesDefaultConfig" . }}
+  curl -s -X POST http://127.0.0.1:{{ $svcPort }}/ingest -H 'Content-Type: application/json' -d '{"hello":"hikyaku"}'
+  kubectl -n {{ $ns }} logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=relay -c hikyaku -f
+{{- end }}
+{{- end }}
+{{- if .Values.ingress.enabled }}
+
+Ingress {{ $fullname }}:
+{{- range (.Values.ingress.hosts | default (list (dict))) }}
+  {{ if $.Values.ingress.tls }}https{{ else }}http{{ end }}://{{ .host | default "<any host>" }}{{ (first (.paths | default (list (dict "path" "/")))).path | default "/" }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+
+HTTPRoute {{ $fullname }} on {{ range $i, $ref := .Values.gatewayAPI.parentRefs }}{{ if $i }}, {{ end }}{{ $ref.namespace | default $ns }}/{{ $ref.name }}{{ end }}{{ with .Values.gatewayAPI.hostnames }} for {{ join ", " . }}{{ end }}.
+{{- end }}
+{{- if or .Values.redis.enabled .Values.redis.external.addr }}
+
+Redis: HIKYAKU_REDIS_ADDR={{ include "hikyaku.redisAddr" . }}, for stores[].addr: "{{ "{{" }}env.HIKYAKU_REDIS_ADDR{{ "}}" }}".
+{{- if .Values.redis.enabled }}
+  The bundled valkey is for development only: no persistence, no auth, no TLS.
+{{- end }}
+{{- end }}
+{{- if .Values.ollama.enabled }}
+
+Ollama sidecar on 127.0.0.1:11434 (hikyaku's default ollama URL).
+{{- if .Values.ollama.models }} Pulling in the background: {{ join ", " .Values.ollama.models }}.{{ end }}
+{{- end }}
+{{- $warnings := include "hikyaku.warnings" . | trim }}
+{{- if $warnings }}
+
+WARNING:
+{{ $warnings | indent 2 }}
+{{- end }}

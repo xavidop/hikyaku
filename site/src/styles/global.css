@@ -1,0 +1,432 @@
+/* hikyaku 飛脚 - the brand palette of DESIGN.md Appendix B:
+     washi (和紙) cream       #F5EBDD  surfaces, text on dark
+     kogecha (焦茶) cocoa     #4A3B35  text on light
+     kakishibu (柿渋) terracotta #D9825B  routes, arrows, the accent
+     matcha (抹茶) sage        #8FAE8B  sources
+     hachimitsu (蜂蜜) honey   #F2B84B  the AI spark
+     border                  #E6D5BF  lines
+   Two themes: washi paper with cocoa ink (light), and cream ink on a deep
+   cocoa night (dark) - warm, never near-black, so long reading stays
+   comfortable. The brand hues are used as they are for fills and marks; for
+   text they are darkened (light) or lifted (dark) until they hold contrast.
+
+   Token names are stable across the site: --rail is the accent (terracotta),
+   --signal the kanji red, --sage and --honey the source and AI colours, --ok
+   and --ai their text forms.
+
+   How the theme is chosen: the header toggle stores light, dark or system.
+   light/dark set data-theme on <html>; system removes it and the
+   prefers-color-scheme query decides. The query is guarded with
+   :not([data-theme="light"]) so an explicit light choice always wins.
+   Every text token below holds WCAG AA (>= 4.5:1) on every surface token
+   (--bg, --bg-2, --bg-3, --code-bg) in both themes; --rail holds 3:1 for
+   the lines and arrows it draws. */
+
+:root {
+  /* Dark values, defined once. The two dark blocks below only map them onto
+     the live tokens, so the media query and the toggle can never drift. */
+  --d-bg: #211814;
+  --d-bg-2: #2a1f1a;
+  --d-bg-3: #33261f;
+  --d-code-bg: #251b17;
+  --d-code-key: #eba27f;
+  --d-code-str: #a9c9a4;
+  --d-code-num: #f2b84b;
+  --d-code-fn: #8cc3cc;
+  --d-code-comment: #a8968a;
+  --d-rail: #d9825b;
+  --d-rail-hi: #e5976f;
+  --d-rail-deep: #eba27f;
+  --d-rail-soft: rgba(217, 130, 91, 0.18);
+  --d-on-rail: #211814;
+  --d-signal: #e5976f;
+  --d-signal-soft: rgba(229, 151, 111, 0.16);
+  --d-sage: #8fae8b;
+  --d-sage-soft: rgba(143, 174, 139, 0.16);
+  --d-ok: #a8c6a4;
+  --d-honey: #f2b84b;
+  --d-honey-soft: rgba(242, 184, 75, 0.16);
+  --d-ai: #f2b84b;
+  --d-ink: #f5ebdd;
+  --d-muted: #e8dbca;
+  --d-muted-2: #c2b09d;
+  --d-line: rgba(245, 235, 221, 0.12);
+  --d-line-strong: rgba(245, 235, 221, 0.2);
+  --d-shadow: 10, 6, 4;
+  --d-backdrop: rgba(14, 9, 7, 0.6);
+
+  /* Light theme (the default token values) */
+  color-scheme: light;
+
+  /* Surfaces: washi paper. Cards are a lighter sheet, wells a darker one. */
+  --bg: #f5ebdd;
+  --bg-2: #fbf6ee;
+  --bg-3: #eee2d0;
+  --code-bg: #fcf8f1; /* lighter than the page, so a block reads as a card */
+  /* Code tokens: the brand hues deepened to AA against --code-bg and every
+     other surface. Same values as src/lib/shiki-themes.mjs. */
+  --code-key: #994524;
+  --code-str: #3b6640;
+  --code-num: #7f5207;
+  --code-fn: #2d6470;
+  --code-comment: #736156;
+
+  /* Primary accent: kakishibu terracotta. --rail draws lines, markers and
+     arrows (3:1); --rail-deep is its text form (links, active items). */
+  --rail: #b85f3a;
+  --rail-hi: #a94f2a;
+  --rail-deep: #994524;
+  --rail-soft: rgba(217, 130, 91, 0.16);
+  --on-rail: #fbf6ee;
+
+  /* The kanji red of the wordmark, as text. */
+  --signal: #994524;
+  --signal-soft: rgba(217, 130, 91, 0.12);
+  /* Matcha: sources and "available". --sage fills, --ok is the text form. */
+  --sage: #8fae8b;
+  --sage-soft: rgba(143, 174, 139, 0.24);
+  --ok: #3b6640;
+  /* Hachimitsu: the AI spark. --honey fills, --ai is the text form. */
+  --honey: #f2b84b;
+  --honey-soft: rgba(242, 184, 75, 0.26);
+  --ai: #7f5207;
+
+  /* Text & lines: kogecha cocoa on washi. --muted is the body text and stays
+     the brand cocoa (9:1 on --bg); --ink is the deeper cocoa of headings. */
+  --ink: #2e241f;
+  --muted: #4a3b35;
+  --muted-2: #6b5a51;
+  --line: #e6d5bf;
+  --line-strong: #d8c2a5;
+
+  /* Shadow tint as an r, g, b triplet: rgba(var(--shadow), alpha) */
+  --shadow: 74, 59, 53;
+  --backdrop: rgba(46, 36, 31, 0.32);
+
+  --font-display: "Plus Jakarta Sans Variable", "Inter Variable", system-ui, sans-serif;
+  --font-body: "Inter Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --step--1: clamp(0.82rem, 0.79rem + 0.16vw, 0.92rem);
+  --step-0: clamp(1.02rem, 0.98rem + 0.2vw, 1.14rem);
+  --step-1: clamp(1.2rem, 1.11rem + 0.44vw, 1.5rem);
+  --step-2: clamp(1.45rem, 1.28rem + 0.86vw, 1.95rem);
+  --step-3: clamp(1.85rem, 1.56rem + 1.5vw, 2.7rem);
+  --step-4: clamp(2.3rem, 1.85rem + 2.3vw, 3.8rem);
+  --step-5: clamp(2.7rem, 2.05rem + 3.3vw, 4.6rem);
+
+  --maxw: 1160px;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Dark: by system preference unless the reader chose light, or by choice.
+   Both blocks are the same mapping; keep them identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--d-bg);
+    --bg-2: var(--d-bg-2);
+    --bg-3: var(--d-bg-3);
+    --code-bg: var(--d-code-bg);
+    --code-key: var(--d-code-key);
+    --code-str: var(--d-code-str);
+    --code-num: var(--d-code-num);
+    --code-fn: var(--d-code-fn);
+    --code-comment: var(--d-code-comment);
+    --rail: var(--d-rail);
+    --rail-hi: var(--d-rail-hi);
+    --rail-deep: var(--d-rail-deep);
+    --rail-soft: var(--d-rail-soft);
+    --on-rail: var(--d-on-rail);
+    --signal: var(--d-signal);
+    --signal-soft: var(--d-signal-soft);
+    --sage: var(--d-sage);
+    --sage-soft: var(--d-sage-soft);
+    --ok: var(--d-ok);
+    --honey: var(--d-honey);
+    --honey-soft: var(--d-honey-soft);
+    --ai: var(--d-ai);
+    --ink: var(--d-ink);
+    --muted: var(--d-muted);
+    --muted-2: var(--d-muted-2);
+    --line: var(--d-line);
+    --line-strong: var(--d-line-strong);
+    --shadow: var(--d-shadow);
+    --backdrop: var(--d-backdrop);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--d-bg);
+  --bg-2: var(--d-bg-2);
+  --bg-3: var(--d-bg-3);
+  --code-bg: var(--d-code-bg);
+  --code-key: var(--d-code-key);
+  --code-str: var(--d-code-str);
+  --code-num: var(--d-code-num);
+  --code-fn: var(--d-code-fn);
+  --code-comment: var(--d-code-comment);
+  --rail: var(--d-rail);
+  --rail-hi: var(--d-rail-hi);
+  --rail-deep: var(--d-rail-deep);
+  --rail-soft: var(--d-rail-soft);
+  --on-rail: var(--d-on-rail);
+  --signal: var(--d-signal);
+  --signal-soft: var(--d-signal-soft);
+  --sage: var(--d-sage);
+  --sage-soft: var(--d-sage-soft);
+  --ok: var(--d-ok);
+  --honey: var(--d-honey);
+  --honey-soft: var(--d-honey-soft);
+  --ai: var(--d-ai);
+  --ink: var(--d-ink);
+  --muted: var(--d-muted);
+  --muted-2: var(--d-muted-2);
+  --line: var(--d-line);
+  --line-strong: var(--d-line-strong);
+  --shadow: var(--d-shadow);
+  --backdrop: var(--d-backdrop);
+}
+
+/* Theme-switched images (the wordmark). These rules only ever hide: a rule
+   that showed an image would have to restore its own display (a block in
+   the hero, a flex item in the header), and `revert` restores the browser's
+   `inline` instead. So each of the four states (light or dark by choice,
+   light or dark by system) hides the image of the other theme and leaves
+   the visible one alone. */
+:root[data-theme="light"] .only-dark,
+:root[data-theme="dark"] .only-light {
+  display: none !important;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .only-dark {
+    display: none !important;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .only-light {
+    display: none !important;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 0;
+  color: var(--ink);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+p {
+  margin: 0 0 1.1rem;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.wrap {
+  width: min(100% - 2.5rem, var(--maxw));
+  margin-inline: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rail-deep);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rail);
+  opacity: 0.7;
+}
+
+.section {
+  padding-block: clamp(3rem, 2.2rem + 3.4vw, 5.5rem);
+  position: relative;
+}
+.section__head {
+  max-width: 54ch;
+  margin-bottom: 3rem;
+}
+.section__head h2 {
+  font-size: var(--step-3);
+  margin-top: 0.7rem;
+}
+.section__head p {
+  color: var(--muted);
+  margin-top: 1rem;
+}
+
+/* Buttons: soft, fully rounded, gentle depth */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.78rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition:
+    transform 0.25s var(--ease),
+    background 0.25s var(--ease),
+    border-color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease);
+  cursor: pointer;
+}
+/* --rail-deep is the darkest terracotta in light (cream text, 6:1) and the
+   lightest in dark (cocoa text, 8:1), so one rule serves both themes. */
+.btn--primary {
+  background: var(--rail-deep);
+  color: var(--on-rail);
+  box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--rail) 60%, transparent);
+}
+.btn--primary:hover {
+  transform: translateY(-1px);
+  background: var(--rail-hi);
+  box-shadow: 0 16px 34px -14px color-mix(in srgb, var(--rail) 65%, transparent);
+}
+.btn--ghost {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--bg-2);
+}
+.btn--ghost:hover {
+  border-color: var(--rail);
+  color: var(--rail-deep);
+  transform: translateY(-1px);
+}
+
+/* Cards: generous radius, a soft diffuse shadow instead of a hard border */
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.7rem;
+  box-shadow: 0 1px 2px rgba(var(--shadow), 0.04);
+  transition:
+    box-shadow 0.3s var(--ease),
+    transform 0.3s var(--ease),
+    border-color 0.3s var(--ease);
+}
+.card:hover {
+  border-color: color-mix(in srgb, var(--rail) 45%, transparent);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px -28px rgba(var(--shadow), 0.4);
+}
+
+/* Code blocks written by hand (the landing page): the same token colours as
+   the Shiki themes of the docs. */
+pre.code {
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.5rem;
+  overflow-x: auto;
+  max-width: 100%;
+  line-height: 1.75;
+  margin: 0;
+  color: var(--muted);
+}
+pre.code .k {
+  color: var(--code-key);
+} /* key or keyword */
+pre.code .s {
+  color: var(--code-str);
+} /* string */
+pre.code .n {
+  color: var(--code-num);
+} /* number or constant */
+pre.code .c {
+  color: var(--code-comment);
+  font-style: italic;
+} /* comment, prompt */
+pre.code .f {
+  color: var(--code-fn);
+  font-weight: 600;
+} /* command or function */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  background: var(--bg-2);
+}
+.badge--ok {
+  color: var(--ok);
+  border-color: transparent;
+  background: var(--sage-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--rail);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
