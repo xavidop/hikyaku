@@ -21,7 +21,8 @@
 #       not pushed yet, with its file proxy in DIR.
 #   scripts/release-check.sh --version vX.Y.Z --public
 #       Checks a pushed release through proxy.golang.org and the checksum
-#       database alone. It retries while the proxy fetches the new tags.
+#       database alone. It retries for up to 40 minutes while the proxy
+#       fetches the new tags (RELEASE_CHECK_PUBLIC_WAIT, in seconds).
 #
 # Third-party modules come from the local module cache, then
 # https://proxy.golang.org: no other network.
@@ -47,16 +48,18 @@ fail() {
 }
 
 # retry runs a command, and with --public runs it again while proxy.golang.org
-# has not fetched the new tags yet.
+# has not fetched the new tags yet. The proxy remembers a version it did not
+# find for up to 30 minutes, so the wait is 40 (RELEASE_CHECK_PUBLIC_WAIT, in
+# seconds), counted from the first failure.
+public_wait="${RELEASE_CHECK_PUBLIC_WAIT:-2400}"
 retry() {
-	local n=1
+	local start=$SECONDS
 	until "$@"; do
-		if [ "$public" != true ] || [ "$n" -ge 8 ]; then
+		if [ "$public" != true ] || [ $((SECONDS - start)) -ge "$public_wait" ]; then
 			return 1
 		fi
-		echo "    proxy.golang.org may not have the tags yet: again in 30s" >&2
-		sleep 30
-		n=$((n + 1))
+		echo "    proxy.golang.org may not have the tags yet: again in 60s ($(((SECONDS - start) / 60)) of $((public_wait / 60)) min waited)" >&2
+		sleep 60
 	done
 }
 
