@@ -6,8 +6,9 @@ title: Transforms
 # Transforms
 
 Transforms reshape a message on its way through hikyaku. Use them to drop messages you do not
-want, to pick fields out of a body, to render a new body, to edit headers, or to change the
-body's encoding. Transforms run in two places:
+want, to pick fields out of a body, to render a new body, to edit headers, to change the
+body's encoding, or to refuse a body that does not match a JSON Schema. Transforms run in two
+places:
 
 - A route's `transforms` run before its router, so the router sees the transformed message.
 - A destination's `transforms` run right before that destination delivers, so each destination
@@ -34,10 +35,11 @@ destinations:
         content_type: application/json
 ```
 
-**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers` and `codec`, or
-`content_type` on its own. `content_type` may also go with a `jq` or `template` entry, to label
-what that entry produced. Validation rejects an entry with two operations. It also compiles
-every CEL expression, jq program and template before the relay starts.
+**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers`, `codec` and
+`validate`, or `content_type` on its own. `content_type` may also go with a `jq` or `template`
+entry, to label what that entry produced. Validation rejects an entry with two operations. It
+also compiles every CEL expression, jq program, template and JSON Schema before the relay
+starts.
 
 ## filter (CEL)
 
@@ -112,6 +114,71 @@ A codec re-encodes the body and sets the content type to match:
 | `form_to_json` | turns a form body (`a=1&b=2`) into a JSON object; repeated keys become arrays | `application/json` |
 | `cloudevents` | wraps the message as a structured CloudEvent: `specversion`, `id`, `source`, `type` (the subject), `time`, `datacontenttype`, and the body as `data` (JSON) or `data_base64` | `application/cloudevents+json` |
 
+## validate (JSON Schema)
+
+```yaml
+routes:
+  - name: orders
+    from: [webhooks]
+    transforms:
+      - validate:
+          schema:
+            type: object
+            required: [id, items]
+            properties:
+              id: { type: string }
+              email: { type: string, format: email }
+              items:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required: [price]
+                  properties:
+                    price: { type: number, minimum: 0 }
+    to: [billing]
+```
+
+`validate` checks the JSON body against a [JSON Schema](https://json-schema.org). It never
+changes the message. A body that matches goes on to the next transform. A body that does not
+match is a failure, not a drop: the bad message is kept, with what is wrong with it.
+
+Write the schema inline under `schema`, or keep it in a file:
+
+```yaml
+- validate: { file: schemas/order.json }
+```
+
+- The file is JSON or YAML. A relative path is relative to the directory the relay runs in. The
+  file is read when the relay starts, and again on a reload.
+- A schema without `$schema` is read as draft 2020-12. Older drafts work when `$schema` names
+  them.
+- `format` is checked (`date-time`, `email`, `uri`, `uuid` and the others), not only noted.
+- A `$ref` may point inside the schema. In a schema file, it may also point at another file.
+  Nothing is fetched over the network, so a `$ref` to an `http://` or `https://` URL is an
+  error.
+- `hikyaku validate` compiles every schema, so a schema with a mistake stops the relay from
+  starting.
+
+A body that is empty, or that is not JSON, does not match. The error lists up to five problems,
+each with the key it is about:
+
+```text
+schema: items[0].price: got string, want number; missing property 'id'
+```
+
+What happens to a message that does not match depends on where the step runs:
+
+- **On a route**, the message goes to the dead-letter queue with reason `schema`, and
+  `hikyaku_schema_invalid_total{route}` counts it. An HTTP source answers `422` with the error,
+  so the sender learns what to fix. The `openai` source answers `400`. Other sources ack the
+  message, because it is safe in the dead-letter queue.
+- **On a destination**, that hop fails as permanent, like any failed transform. The message
+  moves on to the next fallback, then to the dead-letter queue with reason `delivery`.
+
+Put `validate` first to check what the sender sent, or after a `jq` step to check what you are
+about to deliver.
+
 ## content_type
 
 ```yaml
@@ -130,7 +197,8 @@ A transform that errors on a message is a failure. Examples: a codec that cannot
 body, or a template that fails. It is reported as an error, together with the transform, never
 as a silent drop. What happens next depends on where the transform runs:
 
-- On a route, the message goes to the dead-letter queue (DLQ) with reason `transform`.
-  `hikyaku dlq replay` runs it through the route again.
+- On a route, the message goes to the dead-letter queue (DLQ) with reason `transform`, or
+  `schema` when a `validate` step refused the body. `hikyaku dlq replay` runs it through the
+  route again.
 - On a destination, that hop fails as permanent. The message moves on to the next fallback, then
   to the dead-letter queue.

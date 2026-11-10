@@ -2204,6 +2204,20 @@
         "password"
       ]
     },
+    "SchemaCheck": {
+      "properties": {
+        "schema": {
+          "type": "object",
+          "description": "The JSON Schema, written inline."
+        },
+        "file": {
+          "type": "string",
+          "description": "A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Sentinel": {
       "properties": {
         "master_name": {
@@ -2865,6 +2879,10 @@
         "content_type": {
           "type": "string",
           "description": "Set the content type (alone, or after jq or template)."
+        },
+        "validate": {
+          "$ref": "#/$defs/SchemaCheck",
+          "description": "Check the JSON body against a JSON Schema; a body that does not match is a failure."
         }
       },
       "additionalProperties": false,

@@ -411,6 +411,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `headers` | [HeaderOps](#headerops) | Set, add or remove headers (values are templates). |
 | `codec` | string | Re-encode the body. One of `json`, `text`, `base64_encode`, `base64_decode`, `form_to_json`, `cloudevents`. |
 | `content_type` | string | Set the content type (alone, or after jq or template). |
+| `validate` | [SchemaCheck](#schemacheck) | Check the JSON body against a JSON Schema; a body that does not match is a failure. |
 
 ## `HeaderOps`
 
@@ -781,6 +782,13 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `mechanism` **(required)** | string | SASL mechanism. One of `plain`, `scram-sha-256`, `scram-sha-512`. |
 | `username` **(required)** | string | User name. |
 | `password` **(required)** | string | Password; use {{secrets.X}}. |
+
+## `SchemaCheck`
+
+| Key | Type | Description |
+|---|---|---|
+| `schema` | object | The JSON Schema, written inline. |
+| `file` | string | A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory. |
 
 ## `Sentinel`
 

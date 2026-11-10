@@ -349,6 +349,8 @@ func failure(o envelope.Outcome, model string) (int, string, string, string) {
 	switch {
 	case containsTag(tags, plugin.TagNoRoute):
 		return http.StatusNotFound, "invalid_request_error", "model_not_found", fmt.Sprintf("no route serves model %q: %s", model, msg)
+	case containsTag(tags, plugin.TagSchema):
+		return http.StatusBadRequest, "invalid_request_error", "schema", msg
 	case containsTag(tags, plugin.TagTransform):
 		return http.StatusInternalServerError, "server_error", "transform_failed", msg
 	case containsTag(tags, "model:bad_request"):

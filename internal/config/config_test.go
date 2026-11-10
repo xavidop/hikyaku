@@ -382,6 +382,18 @@ func TestValidateTransforms(t *testing.T) {
 	text := errText(t, err)
 	assert.Contains(t, text, "set one of filter, jq, template")
 	assert.Contains(t, text, "set only one of")
+
+	for transforms, want := range map[string]string{
+		"[{ validate: {} }]": "validate: set schema (inline) or file",
+		"[{ validate: { schema: { type: object }, file: s.json } }]":             "validate: set only one of schema and file",
+		"[{ validate: { schema: { type: object } }, jq: . }]":                    "set only one of",
+		"[{ validate: { schema: { type: object } }, content_type: text/plain }]": "content_type does not go with validate",
+	} {
+		_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: "+transforms+" }", 1))
+		assert.Contains(t, errText(t, err), want, transforms)
+	}
+	_, err = loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: [{ validate: { schema: { type: object, required: [id] } } }] }", 1))
+	require.NoError(t, err)
 }
 
 func TestValidateToAndRouterBoth(t *testing.T) {

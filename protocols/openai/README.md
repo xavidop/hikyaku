@@ -128,6 +128,7 @@ Failures are answered in OpenAI's error shape (`{"error": {"message", "type", "c
 | The body is not JSON, or has no `messages` | 400 | `invalid_json`, `missing_messages` |
 | The relay's queue is full | 503 (`Retry-After: 1`) | `overloaded` |
 | No route serves the model: no route takes the source, or its routers chose no destination (a `no_route` dead letter) | 404 | `model_not_found` |
+| A route's `validate` step refused the request body (a `schema` dead letter) | 400 | `schema` |
 | A route transform failed (a `transform` dead letter) | 500 | `transform_failed` |
 | Rejected by filters | 403 | `filtered` |
 | The model destination cannot run the request (`model:bad_request`): it is invalid, the model cannot take it, or the provider refused it as invalid | 400 | `bad_request` |

@@ -62,6 +62,9 @@ const (
 const (
 	TagNoRoute   = "no_route"
 	TagTransform = "transform"
+	// TagSchema: a route's validate step refused the body. The http source
+	// answers 422 for it, the openai source 400.
+	TagSchema = "schema"
 )
 
 // Error is a classified delivery failure.
