@@ -136,8 +136,10 @@ func (s *StreamSource) Start(ctx context.Context, out chan<- *envelope.Envelope)
 		c.nc.Close()
 		return nil
 	}
-	// The pump stops when Start returns, whatever the reason.
-	pctx, stopPump := context.WithCancel(ctx)
+	// The pump stops when Start returns, whatever the reason: not before,
+	// so that what it holds when the relay stops is given back once the
+	// consumer is closed (see consume), not while it still pulls.
+	pctx, stopPump := context.WithCancel(context.Background())
 	pumped := make(chan struct{})
 	go s.pump(pctx, pending, out, pumped)
 	defer func() {
