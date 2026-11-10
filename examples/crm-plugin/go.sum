@@ -79,6 +79,10 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
+github.com/xavidop/hikyaku v1.0.0 h1:S9lUe4L7nUYCZGZ+tz2edCUZhRO+VlBQsHYJ/CjJWPk=
+github.com/xavidop/hikyaku v1.0.0/go.mod h1:KFz4OEf5fXwPuO7medy1zraRN1tcZ2ATJEjEYT0Zvtw=
+github.com/xavidop/hikyaku/grpcplugin v1.0.0 h1:3cKSiUSLkDOb5iyvgjFlysVaI1FH2j7MXzvl+ac1xDQ=
+github.com/xavidop/hikyaku/grpcplugin v1.0.0/go.mod h1:m8KqbJ0zWtriZ9lR2ZBWxfdX3ZdgUC1Z/JHPHuKKnLY=
 go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
 go.etcd.io/bbolt v1.5.0/go.mod h1:mkltfYE5aUHQxUct9N9V+Kp7aSjFqjgrhcXIS70Lrdk=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=

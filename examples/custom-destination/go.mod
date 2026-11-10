@@ -4,8 +4,8 @@ go 1.27
 
 require (
 	github.com/stretchr/testify v1.12.1
-	github.com/xavidop/hikyaku v0.0.0
-	github.com/xavidop/hikyaku/cmd/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.0.0
+	github.com/xavidop/hikyaku/cmd/hikyaku v1.0.0
 )
 
 require (
@@ -199,25 +199,25 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.15.1 // indirect
 	github.com/urfave/cli v1.22.17 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xavidop/hikyaku/grpcplugin v0.0.0 // indirect
-	github.com/xavidop/hikyaku/llm v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/amqp v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/aws v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/azure v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/fault v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/file v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/gcp v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/grpc v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/http v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/kafka v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/mqtt v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/nats v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/openai v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/redis v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/sse v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/tcp v0.0.0 // indirect
-	github.com/xavidop/hikyaku/protocols/ws v0.0.0 // indirect
-	github.com/xavidop/hikyaku/stores/redis v0.0.0 // indirect
+	github.com/xavidop/hikyaku/grpcplugin v1.0.0 // indirect
+	github.com/xavidop/hikyaku/llm v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/amqp v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/aws v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/azure v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/fault v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/file v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/gcp v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/grpc v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/http v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/kafka v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/mqtt v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/nats v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/openai v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/redis v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/sse v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/tcp v1.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/ws v1.0.0 // indirect
+	github.com/xavidop/hikyaku/stores/redis v1.0.0 // indirect
 	github.com/xavidop/mamori v1.13.0 // indirect
 	github.com/xavidop/mamori/providers/aws v0.0.0-20261025123623-b7a7aaf2c85a // indirect
 	github.com/xavidop/mamori/providers/azure v0.0.0-20261101171159-9f03ad10d1cb // indirect
@@ -284,41 +284,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// A custom build outside this repository requires the published versions
-// instead; inside it, every module comes from the checkout.
-replace (
-	github.com/xavidop/hikyaku => ../..
-	github.com/xavidop/hikyaku/cmd/hikyaku => ../../cmd/hikyaku
-	github.com/xavidop/hikyaku/llm => ../../llm
-	github.com/xavidop/hikyaku/protocols/fault => ../../protocols/fault
-	github.com/xavidop/hikyaku/protocols/file => ../../protocols/file
-	github.com/xavidop/hikyaku/protocols/http => ../../protocols/http
-	github.com/xavidop/hikyaku/protocols/sse => ../../protocols/sse
-	github.com/xavidop/hikyaku/protocols/ws => ../../protocols/ws
-	github.com/xavidop/hikyaku/stores/redis => ../../stores/redis
-)
-
-replace github.com/xavidop/hikyaku/protocols/openai => ../../protocols/openai
-
-replace github.com/xavidop/hikyaku/protocols/amqp => ../../protocols/amqp
-
-replace github.com/xavidop/hikyaku/protocols/redis => ../../protocols/redis
-
-replace github.com/xavidop/hikyaku/protocols/aws => ../../protocols/aws
-
-replace github.com/xavidop/hikyaku/protocols/grpc => ../../protocols/grpc
-
-replace github.com/xavidop/hikyaku/protocols/nats => ../../protocols/nats
-
-replace github.com/xavidop/hikyaku/protocols/kafka => ../../protocols/kafka
-
-replace github.com/xavidop/hikyaku/protocols/gcp => ../../protocols/gcp
-
-replace github.com/xavidop/hikyaku/protocols/tcp => ../../protocols/tcp
-
-replace github.com/xavidop/hikyaku/protocols/azure => ../../protocols/azure
-
-replace github.com/xavidop/hikyaku/grpcplugin => ../../grpcplugin
-
-replace github.com/xavidop/hikyaku/protocols/mqtt => ../../protocols/mqtt

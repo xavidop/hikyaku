@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/stretchr/testify v1.12.1
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.0.0
 )
 
 require (
@@ -23,5 +23,3 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ../..

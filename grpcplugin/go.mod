@@ -8,7 +8,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/stretchr/testify v1.12.1
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.0.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.yaml.in/yaml/v3 v3.0.6
@@ -60,5 +60,3 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 )
-
-replace github.com/xavidop/hikyaku => ..

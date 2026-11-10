@@ -7,7 +7,7 @@ require (
 	github.com/openai/openai-go v1.8.2
 	github.com/prometheus/client_golang v1.25.0
 	github.com/stretchr/testify v1.12.1
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.0.0
 )
 
 require (
@@ -79,5 +79,3 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ..
