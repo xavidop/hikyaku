@@ -175,14 +175,6 @@ func (s *Source) session(ctx context.Context, rawURL string, out chan<- *envelop
 	if err != nil {
 		return sessionStats{}, err
 	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		ss.close(time.Now().Add(defaultCloseWait))
-		return sessionStats{}, errSourceGone
-	}
-	s.sess, s.status = ss, nil
-	s.mu.Unlock()
 	s.log.Info("amqp source consuming", "source", s.name, "url", ss.url, "queue", s.opts.queue, "prefetch", s.opts.prefetch)
 	start := time.Now()
 	n, err := s.consume(ctx, ss, deliveries, out)
@@ -217,6 +209,17 @@ func (s *Source) open(ctx context.Context, rawURL string) (*session, <-chan amqp
 			return fail("declare", err)
 		}
 	}
+	// The session is published before the consumer starts, so Health is
+	// right as soon as the broker sees the consume: the relay is connected
+	// by then, whatever it reported about the connects before.
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		ss.close(time.Now().Add(defaultCloseWait))
+		return nil, nil, errSourceGone
+	}
+	s.sess, s.status = ss, nil
+	s.mu.Unlock()
 	deliveries, err := ch.Consume(s.opts.queue, ss.tag, false, false, false, false, nil)
 	if err != nil {
 		return fail("consume queue "+s.opts.queue, err)
