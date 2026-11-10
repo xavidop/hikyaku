@@ -1,0 +1,4 @@
+# Vulnerabilities govulncheck reports as reachable whose risk hikyaku handles in
+# its own code. One ID at the start of a line, then the reason and where the
+# mitigation lives. Remove a line once go.mod has a fixed version of the module;
+# .github/scripts/govulncheck.sh reads this file.

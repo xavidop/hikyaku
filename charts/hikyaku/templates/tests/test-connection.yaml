@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "hikyaku.componentName" (dict "root" . "suffix" "test") }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  # 100:101 is curl_user of the curlimages/curl image.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: healthz
+      image: {{ printf "%s:%s" .Values.tests.image.repository (toString .Values.tests.image.tag) | quote }}
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command:
+        - curl
+      args:
+        - --fail
+        - --silent
+        - --show-error
+        - --retry
+        - "10"
+        - --retry-delay
+        - "3"
+        - --retry-all-errors
+        - --max-time
+        - "5"
+        - {{ printf "http://%s:%d/healthz" (include "hikyaku.componentName" (dict "root" . "suffix" "admin")) (int .Values.adminPort) | quote }}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 64Mi
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+    {{- /* With the built-in example only: on your own spec, a test message
+    would reach your destinations. */}}
+    {{- $http := dict }}
+    {{- range .Values.extraPorts }}
+    {{- if eq .name "http" }}
+    {{- $http = . }}
+    {{- end }}
+    {{- end }}
+    {{- if and (include "hikyaku.usesDefaultConfig" .) $http }}
+    # Relays one message: the example's http source answers 200 once its
+    # stdout destination has it (ack: delivered).
+    - name: relay
+      image: {{ printf "%s:%s" .Values.tests.image.repository (toString .Values.tests.image.tag) | quote }}
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command:
+        - curl
+      args:
+        - --fail
+        - --silent
+        - --show-error
+        - --retry
+        - "10"
+        - --retry-delay
+        - "3"
+        - --retry-all-errors
+        - --max-time
+        - "10"
+        - --header
+        - "Content-Type: application/json"
+        - --data
+        - '{"hikyaku":"helm test"}'
+        - {{ printf "http://%s:%d/ingest" (include "hikyaku.fullname" .) (int ($http.servicePort | default $http.port)) | quote }}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 64Mi
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+    {{- end }}

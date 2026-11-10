@@ -1,0 +1,13 @@
+# chart-testing (ct) configuration for `ct lint` and `ct install`, used by
+# .github/workflows/helm.yml and scripts/helm-test.sh.
+# https://github.com/helm/chart-testing
+remote: origin
+target-branch: main
+chart-dirs:
+  - charts
+validate-maintainers: false
+check-version-increment: true
+# ct runs `helm install --wait` once per charts/hikyaku/ci/*-values.yaml. The
+# bundled valkey and the test pod's image are pulled on first use, so give
+# the release more than helm's default five minutes.
+helm-extra-args: --timeout 600s

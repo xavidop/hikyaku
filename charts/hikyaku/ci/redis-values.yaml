@@ -1,0 +1,33 @@
+# chart-testing: the bundled development valkey, and a spec whose redis store
+# takes its address from HIKYAKU_REDIS_ADDR (<fullname>-redis:6379). The
+# webhooks source dedupes through that store, so the relay really uses it.
+redis:
+  enabled: true
+config:
+  version: 1
+  name: hikyaku-redis
+  sources:
+    - name: webhooks
+      type: http
+      listen: ":8080"
+      path: /ingest
+      dedupe:
+        key: "{{ .json.id }}"
+        ttl: 10m
+        store: redis-dev
+  destinations:
+    - name: log
+      type: stdout
+  stores:
+    - name: redis-dev
+      type: redis
+      addr: "{{env.HIKYAKU_REDIS_ADDR}}"
+      tls:
+        enabled: false
+  routes:
+    - name: all
+      from: [webhooks]
+      to: [log]
+  server:
+    admin:
+      listen: ":9090"

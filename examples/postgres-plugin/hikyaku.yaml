@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# postgres-plugin: PostgreSQL as a destination and as a source, served by an
+# out-of-process Go plugin (hikyaku-postgres, built from this directory with
+# grpcplugin.Serve).
+#
+#   - Webhooks land in the events table, one row per message. A retry of a
+#     message that reached the table writes no second row.
+#   - The outbox table is a transactional outbox: your application inserts a
+#     row in the same transaction as its own change, and hikyaku delivers the
+#     row to the partner's API, marking it delivered once it is there.
+#
+#   go build -o bin/hikyaku-postgres .
+#   export DATABASE_URL=postgres://hikyaku:secret@localhost:5432/relay
+#   hikyaku run -f hikyaku.yaml
+version: 1
+name: postgres-relay
+
+secrets:
+  DATABASE_URL: env:DATABASE_URL
+
+plugins:
+  - name: postgres
+    command: ./bin/hikyaku-postgres # relative to this spec, or on PATH
+    env: { DATABASE_URL: "{{secrets.DATABASE_URL}}" }
+    # Pin the binary you built, so hikyaku refuses any other one:
+    # sha256: "<shasum -a 256 bin/hikyaku-postgres>"
+
+sources:
+  - name: webhooks
+    type: http
+    listen: ":8080"
+    path: /ingest
+  - name: outbox
+    type: postgres # served by the plugin
+    options: { table: outbox, interval: 1s, batch: 100, claim_ttl: 5m, create_table: true }
+
+destinations:
+  - name: events
+    type: postgres # served by the plugin
+    options: { table: events, create_table: true }
+    timeout: 5s
+    retry: { attempts: 5, backoff: 200ms, max_backoff: 5s }
+  - name: partner
+    type: https
+    url: https://partner.example.com/hooks/orders
+    timeout: 10s
+    retry: { attempts: 5, backoff: 500ms, max_backoff: 10s }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - { name: store, from: [webhooks], to: [events] }
+  - { name: outbox, from: [outbox], to: [partner] }
+
+server:
+  admin: { listen: ":9090" }

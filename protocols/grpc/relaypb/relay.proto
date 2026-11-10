@@ -1,0 +1,46 @@
+// The service every hikyaku grpc listen source serves, whatever else it
+// serves from a descriptor set. Regenerate the Go code from the module
+// directory (protocols/grpc) with `go generate ./...`; see README.md.
+syntax = "proto3";
+
+package hikyaku.relay.v1;
+
+option go_package = "github.com/xavidop/hikyaku/protocols/grpc/relaypb;relaypb";
+
+// Relay takes messages into a hikyaku relay.
+service Relay {
+  // Send relays one message. With ack: delivered (the default) it answers
+  // once the message is delivered or dead-lettered; with ack: accepted, once
+  // the relay holds it. UNAVAILABLE asks the caller to retry a message the
+  // relay could not keep, RESOURCE_EXHAUSTED one it had no room for (the
+  // retry-after trailer says when).
+  rpc Send(Message) returns (SendReply);
+}
+
+// Message is one message to relay.
+message Message {
+  // id becomes the message ID (and the idempotency key sent to every
+  // destination), so a retry with the same id is deduplicated downstream.
+  // Empty: the idempotency-key metadata, else a new ULID.
+  string id = 1;
+  // subject is what routes match on as msg.subject. Empty: the method name,
+  // /hikyaku.relay.v1.Relay/Send.
+  string subject = 2;
+  // headers are added to the call's metadata as the message's headers.
+  map<string, string> headers = 3;
+  // content_type of body, such as application/json. Empty: application/json
+  // for a JSON body, text/plain for other UTF-8, else
+  // application/octet-stream.
+  string content_type = 4;
+  bytes body = 5;
+}
+
+// SendReply says what became of a message.
+message SendReply {
+  // id is the message ID.
+  string id = 1;
+  // status is delivered, dead_lettered, unrouted or filtered (ack:
+  // delivered), accepted (ack: accepted), or pending when the outcome took
+  // longer than the source waits (the message is still being delivered).
+  string status = 2;
+}

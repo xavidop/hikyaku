@@ -1,0 +1,87 @@
+{{- if .Values.extraPorts }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hikyaku.fullname" . }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- if and .Values.service.externalTrafficPolicy (has .Values.service.type (list "NodePort" "LoadBalancer")) }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  {{- end }}
+  {{- if and .Values.service.loadBalancerSourceRanges (eq .Values.service.type "LoadBalancer") }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
+  {{- end }}
+  ports:
+    {{- range .Values.extraPorts }}
+    - name: {{ .name }}
+      port: {{ int (.servicePort | default .port) }}
+      targetPort: {{ .name }}
+      protocol: {{ .protocol | default "TCP" }}
+      {{- with .appProtocol }}
+      appProtocol: {{ . }}
+      {{- end }}
+      {{- if and .nodePort (has $.Values.service.type (list "NodePort" "LoadBalancer")) }}
+      nodePort: {{ int .nodePort }}
+      {{- end }}
+    {{- end }}
+  selector:
+    {{- include "hikyaku.relaySelectorLabels" . | nindent 4 }}
+{{- end }}
+---
+# The admin API (/healthz, /readyz, /metrics, /reload...) stays inside the
+# cluster whatever service.type is.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hikyaku.componentName" (dict "root" . "suffix" "admin") }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+spec:
+  type: ClusterIP
+  ports:
+    - name: admin
+      port: {{ int .Values.adminPort }}
+      targetPort: admin
+      protocol: TCP
+  selector:
+    {{- include "hikyaku.relaySelectorLabels" . | nindent 4 }}
+{{- if .Values.persistence.enabled }}
+---
+# Governing Service of the StatefulSet: stable DNS names per pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hikyaku.componentName" (dict "root" . "suffix" "headless") }}
+  labels:
+    {{- include "hikyaku.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    {{- range .Values.extraPorts }}
+    - name: {{ .name }}
+      port: {{ int .port }}
+      targetPort: {{ .name }}
+      protocol: {{ .protocol | default "TCP" }}
+    {{- end }}
+    - name: admin
+      port: {{ int .Values.adminPort }}
+      targetPort: admin
+      protocol: TCP
+  selector:
+    {{- include "hikyaku.relaySelectorLabels" . | nindent 4 }}
+{{- end }}

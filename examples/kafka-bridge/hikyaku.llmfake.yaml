@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The kafka-bridge's ingest route offline: no broker, so a fault destination
+# stands in for Kafka and is down, and the file spool takes every message.
+# hikyaku run -f hikyaku.llmfake.yaml, then POST to localhost:8080/events.
+version: 1
+name: kafka-bridge
+sources:
+  - { name: events, type: http, listen: ":8080", path: /events }
+destinations:
+  - name: raw
+    type: fault
+    fault: { fail: 100% }
+    batch: { max_messages: 500, max_wait: 200ms }
+    retry: { attempts: 2, backoff: 50ms }
+    fallback: [spool]
+  - { name: spool, type: file, path: ./out/spool.ndjson }
+routes:
+  - { name: ingest, from: [events], to: [raw] }
+server:
+  admin: { listen: ":9090" }

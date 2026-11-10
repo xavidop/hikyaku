@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The offline twin of hikyaku.yaml. With no remote stream to subscribe to,
+# hikyaku itself serves the WebSocket (ws listen on :8081) and posts the
+# reshaped events to an HTTP endpoint of its own (an http listen source on
+# :8082 that archives what it receives), so the whole ws → filter → jq →
+# http path runs on one machine:
+#
+#   hikyaku run -f hikyaku.llmfake.yaml
+#   node -e 'const w=new WebSocket("ws://localhost:8081/events");w.onopen=()=>{w.send(JSON.stringify({id:"e1",type:"order.created",ts:1,payload:{total:42}}));w.send(JSON.stringify({type:"heartbeat"}));setTimeout(()=>w.close(),200)}'
+#   cat out/api.ndjson   # the order, reshaped; the heartbeat was filtered out
+version: 1
+name: wss-to-http
+
+sources:
+  - name: live-events
+    type: ws
+    mode: listen
+    listen: ":8081"
+    path: /events
+  - name: api-in
+    type: http
+    mode: listen
+    listen: "127.0.0.1:8082"
+    path: /v1/events
+
+destinations:
+  - name: api
+    type: http
+    url: http://127.0.0.1:8082/v1/events
+    headers: { X-Event-Type: "{{ .json.type }}" }
+    retry: { attempts: 5, backoff: 50ms }
+    circuit_breaker: { failure_ratio: 0.5, min_requests: 20, open_for: 30s }
+    fallback: [spool]
+  - { name: spool, type: file, path: ./out/spool.ndjson }
+  - { name: received, type: file, path: ./out/api.ndjson, format: body }
+  - { name: archive, type: file, path: ./out/archive.ndjson }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: forward
+    from: [live-events]
+    filter: 'has(msg.json.type) && msg.json.type != "heartbeat"'
+    transforms:
+      - jq: '{id: .id, type: .type, at: .ts, data: .payload}'
+    to: [api]
+  - name: archive
+    from: [live-events]
+    to: [archive]
+  - name: api-receiver
+    from: [api-in]
+    to: [received]
+
+server:
+  admin: { listen: ":9090" }

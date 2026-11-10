@@ -1,0 +1,38 @@
+# A spec using the custom chat destination: build this module's binary
+# (go build -o hikyaku-chat .) and run it like hikyaku.
+version: 1
+name: chat-alerts
+
+secrets:
+  CHAT_WEBHOOK_URL: env:CHAT_WEBHOOK_URL
+
+sources:
+  - name: alerts
+    type: http
+    listen: ":8080"
+    path: /alerts
+  - name: drops
+    type: inbox # registered by main.go
+    options: { dir: ./inbox, interval: 1s }
+
+destinations:
+  - name: chat
+    type: chat # registered by main.go
+    options:
+      webhook_url: "{{secrets.CHAT_WEBHOOK_URL}}"
+      text: "{{ .json.severity }}: {{ .json.summary }}"
+      username: hikyaku
+    retry: { attempts: 5, backoff: 200ms }
+    circuit_breaker: { failure_ratio: 0.5, min_requests: 10, open_for: 30s }
+    fallback: [backlog]
+  - { name: backlog, type: file, path: ./out/backlog.ndjson }
+
+dead_letter:
+  type: file
+  path: ./out/dlq.ndjson
+  fallback: [stderr]
+
+routes:
+  - name: notify
+    from: [alerts, drops]
+    to: [chat]

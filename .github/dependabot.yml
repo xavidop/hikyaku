@@ -1,0 +1,62 @@
+version: 2
+updates:
+  # Every Go module, in one entry so that Dependabot groups an update across
+  # modules into a single PR: the monorepo has a module per protocol, plus llm,
+  # stores/redis and the CLI, and one dependency bump would otherwise open a PR
+  # in each. .github/scripts/check_dependabot_coverage.py keeps this list equal
+  # to the modules CI discovers (CI fails when a module is missing or stale here).
+  - package-ecosystem: gomod
+    directories:
+      - "/"
+      - "/cmd/hikyaku"
+      - "/examples/crm-plugin"
+      - "/examples/custom-destination"
+      - "/examples/postgres-plugin"
+      - "/grpcplugin"
+      - "/internal/tools"
+      - "/llm"
+      - "/protocols/amqp"
+      - "/protocols/aws"
+      - "/protocols/azure"
+      - "/protocols/fault"
+      - "/protocols/file"
+      - "/protocols/gcp"
+      - "/protocols/grpc"
+      - "/protocols/http"
+      - "/protocols/kafka"
+      - "/protocols/mqtt"
+      - "/protocols/nats"
+      - "/protocols/openai"
+      - "/protocols/redis"
+      - "/protocols/sse"
+      - "/protocols/tcp"
+      - "/protocols/ws"
+      - "/stores/redis"
+    schedule: { interval: weekly }
+    groups:
+      # Genkit and its plugins move together (llm, and cmd/hikyaku through it).
+      genkit:
+        patterns: ["github.com/firebase/genkit", "github.com/firebase/genkit/*"]
+      # Everything else in one weekly PR.
+      go-dependencies:
+        patterns: ["*"]
+    labels: [dependencies, go]
+
+  # GitHub Actions used by the workflows (pinned by commit SHA; Dependabot
+  # moves the SHA and its version comment together).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly }
+    labels: [dependencies, ci]
+
+  # Docs site (npm)
+  - package-ecosystem: npm
+    directory: "/site"
+    schedule: { interval: weekly }
+    labels: [dependencies, docs]
+
+  # The container image's base (Dockerfile, pinned by digest).
+  - package-ecosystem: docker
+    directory: "/"
+    schedule: { interval: weekly }
+    labels: [dependencies, docker]

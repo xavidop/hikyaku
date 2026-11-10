@@ -1,0 +1,18 @@
+# Labeled cases for `hikyaku ai test --route triage --cases cases.yaml`.
+# `hikyaku history export --labeled` turns recorded corrections into more.
+cases:
+  - name: double charge
+    data: { text: "I was charged twice for my invoice and want a refund." }
+    expect: [billing]
+  - name: plan change
+    data: { text: "Please change my subscription to the yearly plan and send the invoice." }
+    expect: [billing]
+  - name: crash
+    data: { text: "The app crashes with an error every time I open the dashboard." }
+    expect: [support]
+  - name: how-to
+    data: { text: "How do I invite a teammate? Is there a how-to guide?" }
+    expect: [support]
+  - name: outage
+    data: { text: "Total outage: every request fails with 503 errors since 10:00." }
+    expect: [support, oncall]

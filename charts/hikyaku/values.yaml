@@ -1,0 +1,335 @@
+# Default values for the hikyaku chart.
+# The top-level keys are hikyaku's own; the ones after securityContext are the
+# usual pod and workload knobs.
+
+image:
+  # -- Container image repository.
+  repository: ghcr.io/xavidop/hikyaku
+  # -- Image tag. Empty means the chart's appVersion.
+  tag: ""
+  # -- Image digest (sha256:...). When set, the image is pulled by digest and the tag is ignored.
+  digest: ""
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Replicas of the relay. Ignored when autoscaling.enabled is true.
+replicaCount: 2
+
+# -- The hikyaku.yaml spec, as a map (rendered with toYaml) or as a string
+# (rendered as is, for `--set-file config=hikyaku.yaml`). It goes into a
+# ConfigMap mounted at /etc/hikyaku/hikyaku.yaml. Load-time references
+# ({{secrets.X}}, {{env.X}}) and per-message templates ({{ .json.id }}) are
+# passed to hikyaku untouched: the chart never runs them through `tpl`.
+# Empty means the chart's built-in example, which needs nothing else:
+#
+#   version: 1
+#   name: hikyaku
+#   sources:
+#     - {name: webhooks, type: http, listen: ":8080", path: /ingest}
+#   destinations:
+#     - {name: log, type: stdout}
+#   routes:
+#     - {name: all, from: [webhooks], to: [log]}
+#   dead_letter: {type: file, path: /var/lib/hikyaku/dlq.ndjson, fallback: [stderr]}
+#   server:
+#     admin: {listen: ":9090"}
+#
+# (The listen ports follow the `http` entry of extraPorts and adminPort.)
+config: {}
+
+# -- An existing ConfigMap that holds the spec under the key hikyaku.yaml.
+# When set, `config` is ignored and the chart creates no spec ConfigMap.
+existingConfigMap: ""
+
+# -- Extra files, mounted at /etc/hikyaku/prompts/<file name> (file name: content).
+prompts: {}
+
+secrets:
+  # -- An existing Secret loaded with envFrom: each key becomes an environment
+  # variable, for the spec's `secrets: {NAME: env:NAME}` refs.
+  existingSecret: ""
+  # -- NAME: value pairs the chart stores in a Secret (<fullname>-secrets),
+  # also loaded with envFrom. Prefer existingSecret outside development.
+  create: {}
+
+# -- Source ports, exposed on the container and on the Service. Every listen
+# address in the spec needs an entry. Each entry: name (an IANA service name,
+# not `admin`), port (the container port the spec listens on), and optionally
+# servicePort (default: port), protocol (default TCP), appProtocol and nodePort.
+extraPorts:
+  - name: http
+    port: 8080
+
+service:
+  # -- Service type for the source ports. The admin API is always on a
+  # separate ClusterIP Service, <fullname>-admin.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Extra Service labels.
+  labels: {}
+  # -- externalTrafficPolicy (Cluster or Local), for NodePort and LoadBalancer.
+  externalTrafficPolicy: ""
+  # -- Client CIDRs allowed through a LoadBalancer.
+  loadBalancerSourceRanges: []
+
+ingress:
+  # -- Create an Ingress for the source ports.
+  enabled: false
+  # -- IngressClass name.
+  className: ""
+  # -- Ingress annotations (for long-lived WebSocket and SSE streams, raise the
+  # controller's read timeout here).
+  annotations: {}
+  # -- Hosts and paths. Empty routes every host to / (pathType Prefix).
+  # Example: [{host: relay.example.com, paths: [{path: /, pathType: Prefix}]}]
+  hosts: []
+  # -- The extraPorts entry the Ingress sends traffic to.
+  servicePort: http
+  # -- TLS blocks, as in the Ingress spec.
+  tls: []
+
+gatewayAPI:
+  # -- Create a Gateway API HTTPRoute (gateway.networking.k8s.io/v1).
+  enabled: false
+  # -- Gateways to attach to, such as [{name: public, namespace: gateway-system}]. Required when enabled.
+  parentRefs: []
+  # -- Hostnames the route matches.
+  hostnames: []
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Extra HTTPRoute labels.
+  labels: {}
+  # -- The extraPorts entry the route sends traffic to.
+  servicePort: http
+  # -- Rule matches.
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  # -- Rule filters.
+  filters: []
+  # -- Rule timeouts. WebSocket upgrades need nothing special, but long-lived
+  # WebSocket and SSE streams outlive most default request timeouts:
+  # {request: "0s"} disables it on implementations that support it.
+  timeouts: {}
+
+autoscaling:
+  # -- Create a HorizontalPodAutoscaler (autoscaling/v2). It needs resources.requests.
+  enabled: false
+  # -- Lowest replica count.
+  minReplicas: 2
+  # -- Highest replica count.
+  maxReplicas: 10
+  # -- Target average CPU utilization, in percent of requests.
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+  # -- HPA scaling behavior.
+  behavior: {}
+
+pdb:
+  # -- Create a PodDisruptionBudget.
+  enabled: true
+  # -- Pods that must stay available (a number or a percentage).
+  minAvailable: 1
+  # maxUnavailable: 1  # when set, it is used instead of minAvailable
+
+serviceMonitor:
+  # -- Create a Prometheus Operator ServiceMonitor (monitoring.coreos.com/v1) for /metrics on the admin port.
+  enabled: false
+  # -- Extra labels, such as the one your Prometheus selects ServiceMonitors by.
+  labels: {}
+  # -- Scrape interval.
+  interval: 30s
+  # -- Scrape timeout.
+  scrapeTimeout: 10s
+  # -- Relabelings applied before scraping.
+  relabelings: []
+  # -- Metric relabelings applied before ingestion.
+  metricRelabelings: []
+
+networkPolicy:
+  # -- Create a NetworkPolicy for the relay pods.
+  enabled: false
+  # -- Peers allowed to reach the source ports (NetworkPolicyPeer list). Empty allows any peer.
+  ingressFrom: []
+  # -- Peers allowed to reach the admin port. Empty allows any peer (kubelet
+  # probes, Prometheus and helm test need it).
+  adminFrom: []
+  # -- Egress rules (NetworkPolicyEgressRule list). Empty allows all egress.
+  egress: []
+
+persistence:
+  # -- Run as a StatefulSet with a PersistentVolumeClaim per pod at
+  # /var/lib/hikyaku (file DLQs and the disk buffer: buffer.path:
+  # /var/lib/hikyaku/buffer.db). Off: a Deployment with an emptyDir there.
+  enabled: false
+  # -- Volume size. volumeClaimTemplates are immutable: resize existing PVCs by hand.
+  size: 1Gi
+  # -- StorageClass. Empty uses the cluster default; "-" sets storageClassName: "".
+  storageClass: ""
+  # -- Access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC annotations.
+  annotations: {}
+  # -- StatefulSet persistentVolumeClaimRetentionPolicy, such as {whenDeleted: Delete, whenScaled: Retain}.
+  retentionPolicy: {}
+
+ollama:
+  # -- Run Ollama as a sidecar, a local fallback for decision and generative
+  # models. It listens on 127.0.0.1:11434 only, which is the default URL of
+  # hikyaku's ollama plugin and System One ollama server.
+  enabled: false
+  image:
+    # -- Ollama image repository.
+    repository: ollama/ollama
+    # -- Ollama image tag.
+    tag: "0.40.15"
+    # -- Ollama image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Models pulled in the background when the sidecar starts, such as [llama3.2].
+  # They live in an emptyDir, so a new pod pulls them again.
+  models: []
+  # -- Sidecar resources. A model needs its size in memory.
+  resources: {}
+  # -- Sidecar securityContext. Empty uses the relay's securityContext.
+  securityContext: {}
+  # -- Extra environment variables for the sidecar (OLLAMA_KEEP_ALIVE and so on).
+  extraEnv: []
+
+redis:
+  # -- Run a bundled single-replica valkey (Deployment + Service <fullname>-redis)
+  # for development: no persistence, no auth, no TLS. It sets
+  # HIKYAKU_REDIS_ADDR=<fullname>-redis:6379 for the spec.
+  enabled: false
+  image:
+    # -- Bundled valkey image repository.
+    repository: valkey/valkey
+    # -- Bundled valkey image tag.
+    tag: 8-alpine
+    # -- Bundled valkey image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Bundled valkey resources.
+  resources: {}
+  external:
+    # -- host:port of an external Redis (ElastiCache, Memorystore...), exported
+    # as HIKYAKU_REDIS_ADDR. Recommended in production.
+    addr: ""
+    # -- A Secret loaded with envFrom, so its keys (such as REDIS_PASSWORD) reach the spec's secrets.
+    existingSecret: ""
+    # -- Whether the external Redis speaks TLS, exported as HIKYAKU_REDIS_TLS.
+    # The spec still needs `tls: {enabled: true}` on the store.
+    tls: true
+
+# -- Container securityContext of the relay. hikyaku writes only to /tmp and
+# /var/lib/hikyaku, which the chart mounts.
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Pod securityContext. 65532 is the nonroot user of the distroless image.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Admin API port (/healthz, /readyz, /metrics). It must match
+# server.admin.listen in the spec (hikyaku's default is :9090); the chart
+# fails when an inline spec disagrees.
+adminPort: 9090
+
+serviceAccount:
+  # -- Create a ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Empty means the full name when create is true, and `default` otherwise.
+  name: ""
+  # -- ServiceAccount annotations (for workload identity, IRSA and so on).
+  annotations: {}
+  # -- Mount the ServiceAccount token. hikyaku does not call the Kubernetes API.
+  automount: false
+
+# -- Pod annotations.
+podAnnotations: {}
+# -- Extra pod labels.
+podLabels: {}
+# -- Relay container resources.
+resources: {}
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Time the pod gets to stop. Keep it above the spec's server.shutdown_grace (default 20s).
+terminationGracePeriodSeconds: 30
+# -- Pull secrets for a private registry.
+imagePullSecrets: []
+
+# -- Extra arguments after `run -f /etc/hikyaku/hikyaku.yaml`, such as [--watch].
+extraArgs: []
+# -- Extra environment variables (EnvVar list).
+extraEnv: []
+# -- Extra envFrom sources (EnvFromSource list).
+extraEnvFrom: []
+# -- Extra volumes.
+extraVolumes: []
+# -- Extra volume mounts of the relay container.
+extraVolumeMounts: []
+
+# -- Liveness probe.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: admin
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+# -- Readiness probe. /readyz is false while every member of a required
+# destination is down or, with server.readiness.models set in the spec, while no
+# model of a required AI chain is reachable.
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: admin
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+# -- Startup probe: up to a minute for the spec to load and the listeners to open.
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: admin
+  periodSeconds: 2
+  timeoutSeconds: 3
+  failureThreshold: 30
+# -- Container lifecycle hooks, such as {preStop: {sleep: {seconds: 5}}} to let
+# endpoints drain before shutdown (Kubernetes 1.30+; the image has no shell).
+lifecycle: {}
+
+tests:
+  image:
+    # -- Image of the helm test pod. It curls /healthz on the admin Service and,
+    # with the built-in example spec, posts one message to its http source and
+    # expects it delivered.
+    repository: curlimages/curl
+    # -- Test image tag.
+    tag: "8.23.0"
+    # -- Test image pull policy.
+    pullPolicy: IfNotPresent
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the full name.
+fullnameOverride: ""

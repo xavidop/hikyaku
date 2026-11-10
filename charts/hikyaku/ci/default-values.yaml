@@ -1,0 +1,4 @@
+# chart-testing: the chart's defaults (a Deployment of 2 replicas running the
+# built-in example spec, with a PodDisruptionBudget). ct passes
+# --set image.tag=ci --set image.pullPolicy=Never on top of every ci file.
+replicaCount: 2

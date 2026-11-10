@@ -1,0 +1,104 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      # The site publishes it at /hikyaku/schema/hikyaku.schema.json, the
+      # schema's $id, so a schema change redeploys the site.
+      - "schema/hikyaku.schema.json"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Allow one concurrent deployment. Never cancel one in progress: a half-finished
+# Pages deploy is worse than a queued one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # make site-build and make site-linkcheck, with the Node version Astro needs
+  # instead of nvm. Only this job installs npm packages, and it gets no write
+  # permission.
+  build:
+    name: Build Astro site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read # configure-pages reads the site's base path
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24 # Astro 7 needs Node 22.23.4+; the runner image lags, so use the current LTS line
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Install dependencies
+        working-directory: site
+        run: npm ci || npm install
+      - name: Build
+        working-directory: site
+        # BASE_PATH is the path the project site is served under
+        # (/hikyaku on github.io). site/base.mjs gives it to Astro, which needs
+        # it to emit correct asset URLs, and to the link checker. The prebuild
+        # script copies schema/hikyaku.schema.json into public/schema/.
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: npm run build
+      - name: The site serves the current JSON Schema
+        run: cmp schema/hikyaku.schema.json site/dist/schema/hikyaku.schema.json
+      - name: Check links
+        working-directory: site
+        # The SAME BASE_PATH the build used: the checker strips it before
+        # resolving an href against dist/.
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: npm run linkcheck
+      # The Helm chart repository. helm.yml indexes each released chart in
+      # index.yaml on the gh-pages branch, which Pages does not serve while the
+      # site is deployed from this workflow, so the index ships with the site:
+      # https://xavidop.github.io/hikyaku/index.yaml (its entries point at the
+      # chart .tgz on each GitHub Release). Before the first chart release there
+      # is no index, and nothing to add.
+      - name: Add the Helm chart repository index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api -H "Accept: application/vnd.github.raw+json" \
+            "repos/$GITHUB_REPOSITORY/contents/index.yaml?ref=gh-pages" >"$RUNNER_TEMP/index.yaml" 2>"$RUNNER_TEMP/index.err"; then
+            cp "$RUNNER_TEMP/index.yaml" site/dist/index.yaml
+            echo "Serving the Helm chart index from gh-pages."
+          elif grep -q 'HTTP 404' "$RUNNER_TEMP/index.err"; then
+            echo "No index.yaml on gh-pages yet (no chart released): nothing to add."
+          else
+            cat "$RUNNER_TEMP/index.err" >&2
+            exit 1
+          fi
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # publish the deployment
+      id-token: write # the OIDC token deploy-pages proves the artifact's origin with
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

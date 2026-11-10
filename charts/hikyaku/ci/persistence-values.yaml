@@ -1,0 +1,9 @@
+# chart-testing: persistence on, so the relay runs as a StatefulSet with a
+# PersistentVolumeClaim per pod at /var/lib/hikyaku, where the built-in spec
+# keeps its file DLQ.
+persistence:
+  enabled: true
+  size: 128Mi
+  retentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain

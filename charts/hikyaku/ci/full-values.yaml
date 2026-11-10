@@ -1,0 +1,112 @@
+# chart-testing: most knobs at once. Ingress, the Gateway API HTTPRoute and
+# the ServiceMonitor stay off (kind has no Gateway API or Prometheus Operator
+# CRDs), and so does the ollama sidecar (a multi-gigabyte image).
+#
+# The spec's HMAC secret comes from secrets.create through envFrom: if that
+# wiring breaks, hikyaku cannot resolve WEBHOOK_SECRET and the pods never get
+# ready.
+config:
+  version: 1
+  name: hikyaku-full
+  secrets:
+    WEBHOOK_SECRET: env:WEBHOOK_SECRET
+  sources:
+    - name: webhooks
+      type: http
+      listen: ":8080"
+      path: /ingest
+      auth:
+        hmac:
+          header: X-Signature-256
+          algo: sha256
+          secret: "{{secrets.WEBHOOK_SECRET}}"
+    - name: internal
+      type: http
+      listen: ":8081"
+      path: /events
+  destinations:
+    - name: log
+      type: stdout
+  routes:
+    - name: all
+      from: [webhooks, internal]
+      to: [log]
+  dead_letter:
+    type: file
+    path: /var/lib/hikyaku/dlq.ndjson
+    fallback: [stderr]
+  server:
+    admin:
+      listen: ":9090"
+    shutdown_grace: 10s
+
+secrets:
+  create:
+    WEBHOOK_SECRET: ci-only-not-a-secret
+
+prompts:
+  triage.md: |
+    Route billing questions to billing and everything else to support.
+
+extraPorts:
+  - name: http
+    port: 8080
+  - name: internal
+    port: 8081
+    servicePort: 9081
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 90
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Source ports: pods of this namespace only (the admin port stays open to
+  # any peer, for the probes and helm test).
+  ingressFrom:
+    - podSelector: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+serviceAccount:
+  annotations:
+    example.com/role: hikyaku-ci
+
+podAnnotations:
+  example.com/scrape: "false"
+podLabels:
+  example.com/team: relay
+
+extraEnv:
+  - name: HIKYAKU_CI
+    value: "true"
+
+extraVolumes:
+  - name: cache
+    emptyDir: {}
+extraVolumeMounts:
+  - name: cache
+    mountPath: /var/cache/hikyaku
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: hikyaku
+        app.kubernetes.io/component: relay
+
+terminationGracePeriodSeconds: 20

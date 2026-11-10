@@ -1,0 +1,92 @@
+name: 🐛 Bug report
+description: Report a defect in the hikyaku CLI, a protocol, a router, delivery (retries, fallbacks, DLQ) or the container image
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a bug! Please do NOT paste real API keys, tokens, webhook secrets or message bodies with personal data.
+  - type: input
+    id: version
+    attributes:
+      label: hikyaku version
+      description: Output of `hikyaku version`.
+      placeholder: "hikyaku 0.1.0 (abc1234, 2026-11-09)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options:
+        - Release binary (Homebrew, Scoop, .deb/.rpm/.apk or archive)
+        - Container image (ghcr.io/xavidop/hikyaku)
+        - Helm chart
+        - Built from source
+        - As a Go library (hikyaku.Run)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and architecture
+      placeholder: "macOS 15 arm64, Ubuntu 24.04 amd64, Windows 11, Kubernetes 1.34"
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocols involved
+      multiple: true
+      options:
+        - http / https
+        - ws / wss
+        - sse
+        - stdin / stdout / file
+        - fault (hikyaku chaos)
+        - none (CLI, config, schema)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Source (listen, poll, subscribe)
+        - Destination delivery (retries, fallbacks, groups, breaker, DLQ)
+        - Router (static, rules, chain, sticky)
+        - AI router (decision or generative engine)
+        - History store (memory or Redis)
+        - Transforms (CEL, jq, templates)
+        - Admin API, metrics or tracing
+        - CLI or config validation
+        - Container image or Helm chart
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: Spec snippet
+      description: The smallest hikyaku.yaml that shows the problem. Replace secret values with refs (`env:NAME`) and `{{secrets.NAME}}` placeholders.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output and logs
+      description: What `hikyaku` printed, or the relevant log lines. Confirm no credentials or personal data are included.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have removed all real credentials and personal data from this report.
+          required: true

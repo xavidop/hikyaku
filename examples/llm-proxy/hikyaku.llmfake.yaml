@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://xavidop.github.io/hikyaku/schema/hikyaku.schema.json
+#
+# The LLM proxy offline, on deterministic fake models (a -tags llmfake build:
+# make build-llmfake). llmfake/chat answers "You said: <your message>";
+# llmfake/down is always down, so "smart" falls back to it.
+version: 1
+name: llm-proxy
+
+sources:
+  - name: api
+    type: openai
+    listen: ":8080"
+    models: [fast, smart]
+
+destinations:
+  - { name: fast, type: model, model: llmfake/chat }
+  - { name: smart, type: model, model: llmfake/down, fallback: [fast], retry: { attempts: 1 } }
+
+routes:
+  - name: chat
+    from: [api]
+    router:
+      type: rules
+      rules:
+        - { when: 'msg.json.model == "smart"', to: [smart] }
+      default: [fast]
+
+server:
+  admin: { listen: ":9090" }

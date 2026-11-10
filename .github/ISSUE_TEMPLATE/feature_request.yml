@@ -1,0 +1,27 @@
+name: ✨ Feature request
+description: Suggest a capability for hikyaku
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to relay, and what gets in the way?
+      description: Describe the use case (where messages come from, where they must go, what has to happen in between), not just the proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed YAML, flag or behaviour
+      description: Sketch the spec keys, the command or the delivery behaviour you have in mind.
+      render: yaml
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I checked that this fits hikyaku's scope (a YAML-configured relay that reads from endpoints and delivers to endpoints at least once, with AI routing, retries and fallbacks; not multi-step workflow orchestration, exactly-once delivery or a GUI).

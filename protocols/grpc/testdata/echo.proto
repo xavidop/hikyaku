@@ -1,0 +1,61 @@
+// The test services. echo.pb is its descriptor set and internal/echopb its
+// Go code; regenerate both from the module directory with `go generate ./...`.
+syntax = "proto3";
+
+package hikyaku.test.echo.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xavidop/hikyaku/protocols/grpc/internal/echopb;echopb";
+
+// Echo has a unary and a client-streaming method. A listen source serves
+// them, and a destination calls them.
+service Echo {
+  // Say answers one request.
+  rpc Say(SayRequest) returns (SayReply);
+  // Collect reads a stream of requests and answers once.
+  rpc Collect(stream SayRequest) returns (CollectReply);
+}
+
+// Feed streams events. A subscribe source and a destination call Watch,
+// and a listen source serves it.
+service Feed {
+  // Watch streams events.
+  rpc Watch(WatchRequest) returns (stream Event);
+  // Peek answers with one event.
+  rpc Peek(WatchRequest) returns (Event);
+}
+
+// Chat is bidi-streaming. A listen source serves it, and a destination
+// calls it.
+service Chat {
+  // Talk answers each request in turn.
+  rpc Talk(stream SayRequest) returns (stream SayReply);
+}
+
+message SayRequest {
+  string text = 1;
+  int32 count = 2;
+  google.protobuf.Timestamp at = 3;
+}
+
+message SayReply {
+  string text = 1;
+  int32 count = 2;
+}
+
+message CollectReply {
+  int32 received = 1;
+  string last = 2;
+}
+
+message WatchRequest {
+  string topic = 1;
+  int32 limit = 2;
+}
+
+message Event {
+  string topic = 1;
+  int64 seq = 2;
+  string data = 3;
+}
