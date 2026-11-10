@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.1.0](https://github.com/xavidop/hikyaku/compare/v1.0.1...v1.1.0) (2026-11-10)
+
+
+### Features
+
+* **transform:** validate a body against a JSON Schema ([#9](https://github.com/xavidop/hikyaku/issues/9)) ([b80b79c](https://github.com/xavidop/hikyaku/commit/b80b79c39fa52e3e903cfe5b8ea7350586a13ce3))
+
 ## [1.0.1](https://github.com/xavidop/hikyaku/compare/v1.0.0...v1.0.1) (2026-11-10)
 
 
