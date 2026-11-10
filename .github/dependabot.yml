@@ -1,4 +1,6 @@
 version: 2
+# The labels below (dependencies, go, ci, docs, docker) must exist in the
+# repository: Dependabot cannot create them, and says so on each PR.
 updates:
   # Every Go module, in one entry so that Dependabot groups an update across
   # modules into a single PR: the monorepo has a module per protocol, plus llm,
