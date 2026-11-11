@@ -2,6 +2,17 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.2.0](https://github.com/xavidop/hikyaku/compare/v1.1.0...v1.2.0) (2026-11-11)
+
+
+### Features
+
+* **engine:** deliver later with deliver_after and deliver_at ([5c5aa7e](https://github.com/xavidop/hikyaku/commit/5c5aa7ec992c8a370f46934abda7484ba0dae418))
+* **engine:** rate limit a destination ([8d47df7](https://github.com/xavidop/hikyaku/commit/8d47df7fc5aed1e845d99630fa02ed58de39c746))
+* **http:** sign outgoing requests with an HMAC of the body ([4996ebf](https://github.com/xavidop/hikyaku/commit/4996ebfbf65180b4daab25fe3caebe83686b44b9))
+* **transform:** redact fields of a JSON body ([e7568a4](https://github.com/xavidop/hikyaku/commit/e7568a4f39b10672aeed2756b426b4dd083fb7ed))
+* **transform:** send a body validate refused to on_invalid destinations ([3a901d1](https://github.com/xavidop/hikyaku/commit/3a901d13c5d7d8b68b47e127a8b86ca380ab3597))
+
 # [1.1.0](https://github.com/xavidop/hikyaku/compare/v1.0.1...v1.1.0) (2026-11-10)
 
 
