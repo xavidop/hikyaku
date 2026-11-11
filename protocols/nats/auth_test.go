@@ -94,9 +94,11 @@ func TestTokenAuth(t *testing.T) {
 	bad, err := newSink(sp)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bad.Close(context.Background()) })
-	err = bad.Health(ctxT(t))
-	require.Error(t, err)
-	assert.Contains(t, strings.ToLower(err.Error()), "authorization violation")
+	// Health says why once the failed connect is reported.
+	require.Eventually(t, func() bool {
+		err := bad.Health(ctxT(t))
+		return err != nil && strings.Contains(strings.ToLower(err.Error()), "authorization violation")
+	}, 10*time.Second, 10*time.Millisecond)
 
 	// The token in the URL works too, and is never logged.
 	sp2 := spec(t, KindNATS, &config.Source{Name: "tok", Type: KindNATS, Subject: "orders", Reconnect: fast(),
