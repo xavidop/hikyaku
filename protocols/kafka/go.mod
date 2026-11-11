@@ -10,7 +10,7 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.19.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20261109062748-d6ea02a174bc
 	github.com/twmb/franz-go/pkg/kmsg v1.15.1
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.2.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 )
@@ -98,5 +98,3 @@ require (
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ../..
