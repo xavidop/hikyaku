@@ -2880,6 +2880,13 @@
           "type": "string",
           "description": "Set the content type (alone, or after jq or template)."
         },
+        "redact": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email."
+        },
         "validate": {
           "$ref": "#/$defs/SchemaCheck",
           "description": "Check the JSON body against a JSON Schema; a body that does not match is a failure."

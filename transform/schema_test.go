@@ -126,3 +126,26 @@ func TestCompileSchemaErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRedactStep(t *testing.T) {
+	chain, err := Compile("t", []config.Transform{{Redact: []string{"$.card.number", "$..email", "$.items[*].sku"}}})
+	require.NoError(t, err)
+
+	env := body(`{"id":9007199254740993,"card":{"number":"4242","brand":"visa"},"owner":{"email":"a@b.c"},"items":[{"sku":"x","qty":2}]}`)
+	keep, err := chain.Apply(env)
+	require.NoError(t, err)
+	assert.True(t, keep)
+	assert.JSONEq(t, `{"id":9007199254740993,"card":{"number":"[redacted]","brand":"visa"},"owner":{"email":"[redacted]"},"items":[{"sku":"[redacted]","qty":2}]}`, env.BodyText())
+	assert.Contains(t, env.BodyText(), `"id":9007199254740993`, "a number past 2^53 is kept as written")
+
+	same := body(`{ "id": 1 }`)
+	_, err = chain.Apply(same)
+	require.NoError(t, err)
+	assert.Equal(t, `{ "id": 1 }`, same.BodyText(), "nothing selected: the body is left as it is")
+
+	_, err = chain.Apply(body(`card=4242`))
+	assert.ErrorContains(t, err, "redact needs a JSON body")
+
+	_, err = Compile(`route "r".transforms`, []config.Transform{{Redact: []string{"card.number"}}})
+	assert.ErrorContains(t, err, `route "r".transforms[0].redact: `)
+}

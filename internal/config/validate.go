@@ -808,7 +808,7 @@ func (v *validator) ai(p string, rs *RouterSpec, dests, stores map[string]bool) 
 func (v *validator) transforms(p string, ts []Transform) {
 	for i, t := range ts {
 		set := 0
-		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil} {
+		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil, len(t.Redact) > 0} {
 			if ok {
 				set++
 			}
@@ -816,9 +816,9 @@ func (v *validator) transforms(p string, ts []Transform) {
 		tp := p + "[" + strconv.Itoa(i) + "]"
 		switch {
 		case set == 0 && t.ContentType == "":
-			v.add(tp, "set one of filter, jq, template, headers, codec, validate or content_type")
+			v.add(tp, "set one of filter, jq, template, headers, codec, validate, redact or content_type")
 		case set > 1:
-			v.add(tp, "set only one of filter, jq, template, headers, codec and validate per transform")
+			v.add(tp, "set only one of filter, jq, template, headers, codec, validate and redact per transform")
 		}
 		if va := t.Validate; va != nil {
 			switch {

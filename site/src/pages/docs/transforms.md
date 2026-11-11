@@ -7,7 +7,8 @@ title: Transforms
 
 Transforms reshape a message on its way through hikyaku. Use them to drop messages you do not
 want, to pick fields out of a body, to render a new body, to edit headers, to change the
-body's encoding, or to refuse a body that does not match a JSON Schema. Transforms run in two
+body's encoding, to hide sensitive fields, or to refuse a body that does not match a JSON
+Schema. Transforms run in two
 places:
 
 - A route's `transforms` run before its router, so the router sees the transformed message.
@@ -35,8 +36,8 @@ destinations:
         content_type: application/json
 ```
 
-**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers`, `codec` and
-`validate`, or `content_type` on its own. `content_type` may also go with a `jq` or `template`
+**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers`, `codec`, `redact`
+and `validate`, or `content_type` on its own. `content_type` may also go with a `jq` or `template`
 entry, to label what that entry produced. Validation rejects an entry with two operations. It
 also compiles every CEL expression, jq program, template and JSON Schema before the relay
 starts.
@@ -113,6 +114,32 @@ A codec re-encodes the body and sets the content type to match:
 | `base64_decode` | decodes a base64 body | `application/octet-stream` |
 | `form_to_json` | turns a form body (`a=1&b=2`) into a JSON object; repeated keys become arrays | `application/json` |
 | `cloudevents` | wraps the message as a structured CloudEvent: `specversion`, `id`, `source`, `type` (the subject), `time`, `datacontenttype`, and the body as `data` (JSON) or `data_base64` | `application/cloudevents+json` |
+
+## redact
+
+```yaml
+destinations:
+  - name: archive
+    type: s3
+    bucket: orders-archive
+    transforms:
+      - redact: [$.card.number, $..email, "$.items[*].note"]
+```
+
+`redact` replaces the values its JSONPaths select with the string `[redacted]`, and leaves the
+rest of the JSON body as it is. Use it on a destination to keep sensitive fields away from one
+receiver, or on a route to keep them away from every destination of the route.
+
+- The paths are the ones `router.input.redact` takes: `$.a.b`, `$.a[0]`, `$.a[*].b`,
+  `$['odd key']`, and `$..email` for a key at any depth.
+- A path that selects nothing in a message is fine: the message goes on unchanged.
+- A body that is not JSON is a failure, not a pass. Letting it through would deliver what the
+  step is there to hide.
+- Validation compiles every path before the relay starts.
+
+A `redact` on a destination changes that destination's copy only. When that delivery fails,
+the dead letter holds the message as it was before the destination's transforms, so protect the
+dead-letter queue like the data it holds.
 
 ## validate (JSON Schema)
 
