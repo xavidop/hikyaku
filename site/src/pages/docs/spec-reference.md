@@ -411,6 +411,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `headers` | [HeaderOps](#headerops) | Set, add or remove headers (values are templates). |
 | `codec` | string | Re-encode the body. One of `json`, `text`, `base64_encode`, `base64_decode`, `form_to_json`, `cloudevents`. |
 | `content_type` | string | Set the content type (alone, or after jq or template). |
+| `redact` | string[] | JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email. |
 | `validate` | [SchemaCheck](#schemacheck) | Check the JSON body against a JSON Schema; a body that does not match is a failure. |
 
 ## `HeaderOps`

@@ -615,6 +615,7 @@ type Transform struct {
 	Headers     *HeaderOps   `yaml:"headers,omitempty" jsonschema_description:"Set, add or remove headers (values are templates)."`
 	Codec       string       `yaml:"codec,omitempty" jsonschema:"enum=json,enum=text,enum=base64_encode,enum=base64_decode,enum=form_to_json,enum=cloudevents" jsonschema_description:"Re-encode the body."`
 	ContentType string       `yaml:"content_type,omitempty" jsonschema_description:"Set the content type (alone, or after jq or template)."`
+	Redact      []string     `yaml:"redact,omitempty" jsonschema_description:"JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email."`
 	Validate    *SchemaCheck `yaml:"validate,omitempty" jsonschema_description:"Check the JSON body against a JSON Schema; a body that does not match is a failure."`
 }
 

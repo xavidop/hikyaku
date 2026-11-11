@@ -1,6 +1,7 @@
 package transform
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/xavidop/hikyaku/envelope"
 	"github.com/xavidop/hikyaku/internal/config"
+	"github.com/xavidop/hikyaku/internal/redact"
 )
 
 // Step changes an envelope in place. keep is false when the message is
@@ -72,6 +74,12 @@ func Compile(path string, specs []config.Transform) (Chain, error) {
 				return nil, fmt.Errorf("%s.codec: %w", p, err)
 			}
 			step = c
+		case len(t.Redact) > 0:
+			paths, err := redact.CompilePaths(t.Redact)
+			if err != nil {
+				return nil, fmt.Errorf("%s.redact: %w", p, err)
+			}
+			step = RedactStep{Paths: paths}
 		case t.Validate != nil:
 			s, err := CompileSchema(t.Validate)
 			if err != nil {
@@ -201,6 +209,33 @@ func (h HeadersStep) Apply(env *envelope.Envelope) (bool, error) {
 		ck := textproto.CanonicalMIMEHeaderKey(k)
 		env.Headers[ck] = append(env.Headers[ck], v)
 	}
+	return true, nil
+}
+
+// RedactStep replaces the values its JSONPaths select with
+// redact.Redacted. A path that selects nothing in a message leaves it as it
+// is. A body that is not JSON is an error: letting it through would deliver
+// what the step is there to hide.
+type RedactStep struct{ Paths []redact.Path }
+
+// Apply redacts the JSON body.
+func (r RedactStep) Apply(env *envelope.Envelope) (bool, error) {
+	// A copy of its own: the envelope's parsed view is shared, and numbers
+	// are kept as written (a 64-bit ID must not come back as a float).
+	dec := json.NewDecoder(bytes.NewReader(env.Body))
+	dec.UseNumber()
+	var doc any
+	if err := dec.Decode(&doc); err != nil {
+		return false, fmt.Errorf("redact needs a JSON body: %w", err)
+	}
+	if redact.JSON(doc, r.Paths) == 0 {
+		return true, nil
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return false, fmt.Errorf("redact: %w", err)
+	}
+	env.SetBody(b)
 	return true, nil
 }
 
