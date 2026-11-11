@@ -58,6 +58,15 @@ These record where the build departs from the design, and the decisions the desi
   - `transform.SchemaError` marks a refusal. On a route it dead-letters with reason `schema` and tag `schema`: http answers 422 with the error, openai 400. On a destination it is a failed transform (a permanent hop).
   - Formats are asserted. Nothing is fetched over the network for a `$ref`.
   - `on_invalid.to` (route transforms only) delivers the refused message instead, with the `schema.error` attribute. The decision's router is `validate`, and the outcome is delivered (an http caller gets 200).
+- **`auth.webhook` (http sources):** `internal/inbound/webhook.go` checks a request the way GitHub, Stripe, Slack, Shopify or Twilio signs it. The GitHub, Slack and Twilio tests use the examples of those senders' own docs. `tolerance` bounds the signed timestamp both ways (stripe, slack). Twilio signs the public URL: `url`, or the request's `Host` and `X-Forwarded-Proto`, tried with and without the default port. The signature headers stay on the message.
+- **`notify` (alerts):** `engine/notify.go`. A top-level list (files are concatenated). `deadLetter` and the breaker's `onChange` call `emit`, which never blocks (the breaker holds its lock).
+  - Per rule, event and subject (endpoint, destination or route): the first event is sent, the next ones are counted until `every` passes, then sent as one alert with `count` and `since`.
+  - A worker delivers with `e.deliver`, not `DeliverTo`: a failed alert is logged and counted (`hikyaku_notifications_total`), never dead-lettered. An alert is not sent to the destination it is about.
+  - Only `Run` starts the notifier, and `Close` stops it before the sinks close.
+- **`enrich` transform:** `transform/enrich.go`. One HTTP call (GET, or POST with the body), no retry; the JSON answer goes under `into`. `on_error: skip` covers the call only, not a body that is not a JSON object.
+  - `transform.CompileWith` takes `Options{Egress}`; the engine passes the spec's. `Compile` (used by `engine.Check`) passes none.
+  - The SSRF guard moved to `internal/egress` (protocols/http aliases it). It guards an `enrich` whose URL has a template, like an http destination's.
+  - `cache` is in-process, per step, keyed by the rendered URL and headers, at most 10,000 answers.
 - **`redact` transform:** the JSONPaths of `router.input.redact`, applied to the body. A body that is not JSON is a failure, never a pass.
 - **`sign` (http destinations):** `protocols/http/sign.go`, the sending side of `auth.hmac`. It signs last, over the bytes that go out. `timestamp_header` makes the signature cover `<timestamp>.<body>`, which `auth.hmac` does not verify.
 - **`rate_limit` (destinations):** one `x/time/rate` bucket per destination, in this process only. `tryEndpoint` takes a token before every attempt and waits holding the worker. A turn past the deadline fails at once with the `deadline` outcome.

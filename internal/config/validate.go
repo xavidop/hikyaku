@@ -155,6 +155,7 @@ func (v *validator) spec() {
 	v.listeners()
 	v.pluginBinaries()
 	v.deadLetter(dests)
+	v.notify(dests)
 	v.routes(sources, dests, stores)
 	v.process()
 	for i := range s.Sources {
@@ -392,6 +393,9 @@ func (v *validator) sources() map[string]bool {
 			if a.Bearer != nil && len(a.Bearer.Tokens) == 0 {
 				v.add(p+".auth.bearer.tokens", "is required")
 			}
+			if w := a.Webhook; w != nil {
+				v.webhookAuth(p+".auth.webhook", src.Type, w)
+			}
 			if a.JWT != nil && a.JWT.JWKSURL == "" {
 				v.add(p+".auth.jwt.jwks_url", "is required")
 			}
@@ -406,6 +410,27 @@ func (v *validator) sources() map[string]bool {
 		}
 	}
 	return names
+}
+
+// WebhookProviders are the senders auth.webhook can verify.
+var WebhookProviders = []string{"github", "stripe", "slack", "shopify", "twilio"}
+
+func (v *validator) webhookAuth(p, sourceType string, w *WebhookAuth) {
+	if sourceType != "http" {
+		v.add(p, "applies to http sources only: it signs the request body")
+	}
+	if !slices.Contains(WebhookProviders, w.Provider) {
+		v.add(p+".provider", "must be one of %s", strings.Join(WebhookProviders, ", "))
+	}
+	if w.Secret == "" {
+		v.add(p+".secret", "is required")
+	}
+	if w.Tolerance != 0 && w.Provider != "stripe" && w.Provider != "slack" {
+		v.add(p+".tolerance", "applies to stripe and slack only: %s signs no timestamp", w.Provider)
+	}
+	if w.URL != "" && w.Provider != "twilio" {
+		v.add(p+".url", "applies to twilio only")
+	}
 }
 
 func validIPOrCIDR(s string) bool {
@@ -577,6 +602,8 @@ func (v *validator) endpoint(p string, e Endpoint) {
 			v.add(p+".auth", "applies to sse destinations only: it checks the clients that read the stream")
 		case e.Auth.HMAC != nil:
 			v.add(p+".auth.hmac", "does not apply: a client reading the stream sends no body to sign")
+		case e.Auth.Webhook != nil:
+			v.add(p+".auth.webhook", "does not apply: a client reading the stream sends no body to sign")
 		}
 	}
 	if e.Frame != "" && !slices.Contains([]string{"ws", "wss", "tcp", "udp"}, e.Type) {
@@ -640,6 +667,21 @@ func (v *validator) fallbackCycles() {
 	for _, d := range v.s.Destinations {
 		if color[d.Name] == white {
 			visit(d.Name)
+		}
+	}
+}
+
+func (v *validator) notify(dests map[string]bool) {
+	for i, n := range v.s.Notify {
+		p := fmt.Sprintf("notify[%d]", i)
+		if len(n.To) == 0 {
+			v.add(p+".to", "is required: the destinations that get the alert")
+		}
+		v.destRefs(p+".to", n.To, dests)
+		for j, ev := range n.On {
+			if !slices.Contains(NotifyEvents, ev) {
+				v.add(fmt.Sprintf("%s.on[%d]", p, j), "%q is not an event (use %s)", ev, strings.Join(NotifyEvents, ", "))
+			}
 		}
 	}
 }
@@ -848,7 +890,7 @@ func (v *validator) ai(p string, rs *RouterSpec, dests, stores map[string]bool) 
 func (v *validator) transforms(p string, ts []Transform) {
 	for i, t := range ts {
 		set := 0
-		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil, len(t.Redact) > 0} {
+		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil, len(t.Redact) > 0, t.Enrich != nil} {
 			if ok {
 				set++
 			}
@@ -856,9 +898,31 @@ func (v *validator) transforms(p string, ts []Transform) {
 		tp := p + "[" + strconv.Itoa(i) + "]"
 		switch {
 		case set == 0 && t.ContentType == "":
-			v.add(tp, "set one of filter, jq, template, headers, codec, validate, redact or content_type")
+			v.add(tp, "set one of filter, jq, template, headers, codec, validate, redact, enrich or content_type")
 		case set > 1:
-			v.add(tp, "set only one of filter, jq, template, headers, codec, validate and redact per transform")
+			v.add(tp, "set only one of filter, jq, template, headers, codec, validate, redact and enrich per transform")
+		}
+		if en := t.Enrich; en != nil {
+			if en.URL == "" {
+				v.add(tp+".enrich.url", "is required")
+			}
+			if en.Into == "" {
+				v.add(tp+".enrich.into", "is required: the key of the JSON body that gets the answer")
+			} else if slices.Contains(strings.Split(en.Into, "."), "") {
+				v.add(tp+".enrich.into", "%q is not a key or a dotted path of keys", en.Into)
+			}
+			if en.Method != "" && en.Method != "GET" && en.Method != "POST" {
+				v.add(tp+".enrich.method", "must be GET or POST")
+			}
+			if en.OnError != "" && en.OnError != "fail" && en.OnError != "skip" {
+				v.add(tp+".enrich.on_error", "must be fail or skip")
+			}
+			if en.Cache != 0 && en.Method == "POST" {
+				v.add(tp+".enrich.cache", "applies to GET only: a POST's answer depends on the body")
+			}
+			if t.ContentType != "" {
+				v.add(tp+".enrich", "content_type does not go with enrich: the body stays JSON")
+			}
 		}
 		if va := t.Validate; va != nil {
 			switch {

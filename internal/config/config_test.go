@@ -403,6 +403,27 @@ func TestValidateTransforms(t *testing.T) {
 	}
 }
 
+func TestValidateEnrich(t *testing.T) {
+	with := func(transforms string) string {
+		return strings.Replace(minimal, "to: [out] }", "to: [out], transforms: "+transforms+" }", 1)
+	}
+	_, err := loadYAML(t, with(`[{ enrich: { url: "https://crm.test/c/{{ .json.id }}", into: meta.customer, cache: 5m, timeout: 1s, on_error: skip, headers: { Authorization: "Bearer k" } } }]`))
+	require.NoError(t, err)
+	for transforms, want := range map[string]string{
+		`[{ enrich: { into: c } }]`:                                                 "enrich.url: is required",
+		`[{ enrich: { url: "https://x.test" } }]`:                                   "enrich.into: is required",
+		`[{ enrich: { url: "https://x.test", into: "a..b" } }]`:                     `enrich.into: "a..b" is not a key or a dotted path of keys`,
+		`[{ enrich: { url: "https://x.test", into: c, method: PUT } }]`:             "enrich.method: must be GET or POST",
+		`[{ enrich: { url: "https://x.test", into: c, on_error: retry } }]`:         "enrich.on_error: must be fail or skip",
+		`[{ enrich: { url: "https://x.test", into: c, method: POST, cache: 1m } }]`: "enrich.cache: applies to GET only",
+		`[{ enrich: { url: "https://x.test", into: c }, jq: . }]`:                   "set only one of",
+		`[{ enrich: { url: "https://x.test", into: c }, content_type: a/b }]`:       "content_type does not go with enrich",
+	} {
+		_, err := loadYAML(t, with(transforms))
+		assert.Contains(t, errText(t, err), want, transforms)
+	}
+}
+
 func TestValidateRateLimit(t *testing.T) {
 	dest := func(d string) string {
 		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
@@ -433,6 +454,45 @@ func TestValidateSign(t *testing.T) {
 	} {
 		_, err := loadYAML(t, dest(d))
 		assert.Contains(t, errText(t, err), want, d)
+	}
+}
+
+func TestValidateWebhookAuth(t *testing.T) {
+	src := func(s string) string {
+		return strings.Replace(minimal, "  - { name: in, type: stdin }", "  - "+s, 1)
+	}
+	require.Contains(t, minimal, "  - { name: in, type: stdin }")
+	for _, ok := range []string{
+		`{ name: in, type: http, listen: ":8080", path: /gh, auth: { webhook: { provider: github, secret: k } } }`,
+		`{ name: in, type: http, listen: ":8080", path: /st, auth: { webhook: { provider: stripe, secret: k, tolerance: 10m } } }`,
+		`{ name: in, type: http, listen: ":8080", path: /tw, auth: { webhook: { provider: twilio, secret: k, url: "https://x.test/tw" } } }`,
+	} {
+		_, err := loadYAML(t, src(ok))
+		require.NoError(t, err, ok)
+	}
+	for s, want := range map[string]string{
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: paypal, secret: k } } }`:                  `source "in".auth.webhook.provider: must be one of github, stripe, slack, shopify, twilio`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: github } } }`:                             `source "in".auth.webhook.secret: is required`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: github, secret: k, tolerance: 1m } } }`:   `source "in".auth.webhook.tolerance: applies to stripe and slack only`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: slack, secret: k, url: "https://x" } } }`: `source "in".auth.webhook.url: applies to twilio only`,
+		`{ name: in, type: ws, listen: ":8080", path: /ws, auth: { webhook: { provider: github, secret: k } } }`:         `source "in".auth.webhook: applies to http sources only`,
+	} {
+		_, err := loadYAML(t, src(s))
+		assert.Contains(t, errText(t, err), want, s)
+	}
+}
+
+func TestValidateNotify(t *testing.T) {
+	s := mustLoad(t, minimal+"notify:\n  - { to: [out] }\n  - { on: [circuit_open, circuit_closed, dead_letter], to: [out], every: 5m }\n")
+	require.Len(t, s.Notify, 2)
+	assert.Equal(t, 5*time.Minute, s.Notify[1].Every.Std())
+	for n, want := range map[string]string{
+		`{ on: [dead_letter] }`:        `notify[0].to: is required`,
+		`{ to: [nowhere] }`:            `notify[0].to[0]: destination "nowhere" is not declared`,
+		`{ on: [breaker], to: [out] }`: `notify[0].on[0]: "breaker" is not an event (use dead_letter, circuit_open, circuit_closed)`,
+	} {
+		_, err := loadYAML(t, minimal+"notify:\n  - "+n+"\n")
+		assert.Contains(t, errText(t, err), want, n)
 	}
 }
 

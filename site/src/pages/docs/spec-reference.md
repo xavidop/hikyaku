@@ -32,6 +32,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `buffer` | [Buffer](#buffer) | The queue between sources and delivery workers. |
 | `egress` | [Egress](#egress) | SSRF guard for destinations whose URL host is a per-message template. |
 | `plugins` | [PluginBinary](#pluginbinary)[] | Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares. |
+| `notify` | [Notify](#notify)[] | Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes. |
 
 ## `Source`
 
@@ -418,6 +419,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `content_type` | string | Set the content type (alone, or after jq or template). |
 | `redact` | string[] | JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email. |
 | `validate` | [SchemaCheck](#schemacheck) | Check the JSON body against a JSON Schema; a body that does not match is a failure. |
+| `enrich` | [Enrich](#enrich) | Call an HTTP endpoint and put its JSON answer into the JSON body. |
 
 ## `HeaderOps`
 
@@ -544,6 +546,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `bearer` | [BearerAuth](#bearerauth) | Require a bearer token. |
 | `jwt` | [JWTAuth](#jwtauth) | Verify a JWT against a JWKS. |
 | `api_key` | [APIKeyAuth](#apikeyauth) | Require an API key header. |
+| `webhook` | [WebhookAuth](#webhookauth) | Verify the signature of a well-known webhook sender (http sources). |
 | `ip_allow` | string[] | Allowed client IPs or CIDRs. |
 
 ## `Azure`
@@ -600,6 +603,18 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 |---|---|---|
 | `allow` | string[] | Hosts (exact, or *.suffix) and CIDRs a templated URL may reach. |
 | `allow_private` | boolean | Let templated URLs reach private, loopback and link-local addresses. |
+
+## `Enrich`
+
+| Key | Type | Description |
+|---|---|---|
+| `url` **(required)** | string | The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}. |
+| `method` | string | GET (default), or POST, which sends the message body. One of `GET`, `POST`. |
+| `headers` | map of string | Request headers (values are templates). |
+| `into` **(required)** | string | Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer. |
+| `timeout` | [Duration](#duration) | How long the call may take (default 2s). |
+| `cache` | [Duration](#duration) | Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache). |
+| `on_error` | string | When the call fails: fail (default) fails the transform, skip lets the message go on without the answer. One of `fail`, `skip`. |
 
 ## `Fault`
 
@@ -712,6 +727,14 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `decision` | string | Default decision model, such as typesafe/jev-1.13.0. Pin a version in production. |
 | `retry` | [ModelRetry](#modelretry) | Tries per model before the next model of the chain. |
 | `fallback` | [ModelFallback](#modelfallback) | Global model fallback chains. |
+
+## `Notify`
+
+| Key | Type | Description |
+|---|---|---|
+| `on` | string[] | The events that alert (default dead_letter and circuit_open). |
+| `to` **(required)** | string[] | The destinations that get the alert, a JSON message. |
+| `every` | [Duration](#duration) | At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m). |
 
 ## `OTel`
 
@@ -873,6 +896,15 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `client_ca_file` | string | listen: CA bundle that verifies client certificates (mTLS). |
 | `server_name` | string | SNI and verification name. |
 | `insecure_skip_verify` | boolean | Skip server verification (development only). |
+
+## `WebhookAuth`
+
+| Key | Type | Description |
+|---|---|---|
+| `provider` **(required)** | string | Who sends the webhook. One of `github`, `stripe`, `slack`, `shopify`, `twilio`. |
+| `secret` **(required)** | string | The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}. |
+| `tolerance` | [Duration](#duration) | How old a signed timestamp may be (stripe and slack; default 5m). |
+| `url` | string | twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme. |
 
 ## Scalar types
 

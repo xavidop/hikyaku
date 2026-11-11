@@ -385,6 +385,25 @@ func TestListenBackpressure(t *testing.T) {
 	assert.Equal(t, before+1, refused.Load(), "counted in hikyaku_backpressure_total")
 }
 
+func TestListenWebhookPreset(t *testing.T) {
+	url, out := listener(t, config.Source{
+		Ack:  "accepted",
+		Auth: &config.Auth{Webhook: &config.WebhookAuth{Provider: "github", Secret: "s3cret"}},
+	}, 10)
+	body := `{"action":"opened"}`
+	sig := "sha256=" + inbound.Sign("s3cret", []byte(body))
+	resp, _ := post(t, url, body, map[string]string{"X-Hub-Signature-256": sig, "X-GitHub-Event": "pull_request"})
+	assert.Equal(t, 202, resp.StatusCode)
+	env := <-out
+	assert.Equal(t, body, string(env.Body))
+	assert.Equal(t, "pull_request", env.Header("X-GitHub-Event"))
+
+	resp, _ = post(t, url, `{"action":"closed"}`, map[string]string{"X-Hub-Signature-256": sig})
+	assert.Equal(t, 401, resp.StatusCode, "the signature is of another body")
+	resp, _ = post(t, url, body, nil)
+	assert.Equal(t, 401, resp.StatusCode)
+}
+
 func TestListenAuthMethodAndSize(t *testing.T) {
 	url, out := listener(t, config.Source{
 		Ack: "accepted", MaxBodyBytes: 16,

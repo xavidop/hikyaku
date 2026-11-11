@@ -39,6 +39,12 @@ func (c Chain) Apply(env *envelope.Envelope) (bool, error) {
 
 // Compile builds the steps of a transforms: list.
 func Compile(path string, specs []config.Transform) (Chain, error) {
+	return CompileWith(path, specs, Options{})
+}
+
+// CompileWith is Compile with what the steps need from the rest of the
+// spec (an enrich step's egress guard).
+func CompileWith(path string, specs []config.Transform, o Options) (Chain, error) {
 	var out Chain
 	for i, t := range specs {
 		p := fmt.Sprintf("%s[%d]", path, i)
@@ -86,6 +92,12 @@ func Compile(path string, specs []config.Transform) (Chain, error) {
 				return nil, fmt.Errorf("%s.validate: %w", p, err)
 			}
 			step = s
+		case t.Enrich != nil:
+			en, err := compileEnrich(p, t.Enrich, o)
+			if err != nil {
+				return nil, fmt.Errorf("%s.enrich: %w", p, err)
+			}
+			step = en
 		case t.ContentType != "":
 			step = contentTypeStep(t.ContentType)
 		default:

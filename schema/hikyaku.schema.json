@@ -138,6 +138,10 @@
           "$ref": "#/$defs/APIKeyAuth",
           "description": "Require an API key header."
         },
+        "webhook": {
+          "$ref": "#/$defs/WebhookAuth",
+          "description": "Verify the signature of a well-known webhook sender (http sources)."
+        },
         "ip_allow": {
           "items": {
             "type": "string"
@@ -1031,6 +1035,55 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Enrich": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "description": "GET (default), or POST, which sends the message body."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Request headers (values are templates)."
+        },
+        "into": {
+          "type": "string",
+          "description": "Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long the call may take (default 2s)."
+        },
+        "cache": {
+          "$ref": "#/$defs/Duration",
+          "description": "Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache)."
+        },
+        "on_error": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "skip"
+          ],
+          "description": "When the call fails: fail (default) fails the transform, skip lets the message go on without the answer."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "into"
+      ]
+    },
     "Fault": {
       "properties": {
         "fail": {
@@ -1715,6 +1768,38 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Notify": {
+      "properties": {
+        "on": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "dead_letter",
+              "circuit_open",
+              "circuit_closed"
+            ]
+          },
+          "type": "array",
+          "description": "The events that alert (default dead_letter and circuit_open)."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "The destinations that get the alert, a JSON message."
+        },
+        "every": {
+          "$ref": "#/$defs/Duration",
+          "description": "At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
     },
     "OTel": {
       "properties": {
@@ -2992,10 +3077,47 @@
         "validate": {
           "$ref": "#/$defs/SchemaCheck",
           "description": "Check the JSON body against a JSON Schema; a body that does not match is a failure."
+        },
+        "enrich": {
+          "$ref": "#/$defs/Enrich",
+          "description": "Call an HTTP endpoint and put its JSON answer into the JSON body."
         }
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "WebhookAuth": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "github",
+            "stripe",
+            "slack",
+            "shopify",
+            "twilio"
+          ],
+          "description": "Who sends the webhook."
+        },
+        "secret": {
+          "type": "string",
+          "description": "The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}."
+        },
+        "tolerance": {
+          "$ref": "#/$defs/Duration",
+          "description": "How old a signed timestamp may be (stripe and slack; default 5m)."
+        },
+        "url": {
+          "type": "string",
+          "description": "twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "secret"
+      ]
     },
     "Window": {
       "properties": {
@@ -3097,6 +3219,13 @@
       },
       "type": "array",
       "description": "Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares."
+    },
+    "notify": {
+      "items": {
+        "$ref": "#/$defs/Notify"
+      },
+      "type": "array",
+      "description": "Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes."
     }
   },
   "additionalProperties": false,

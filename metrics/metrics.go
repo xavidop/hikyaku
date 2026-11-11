@@ -28,6 +28,7 @@ type Metrics struct {
 	DeliveryDuration *prometheus.HistogramVec // hikyaku_delivery_duration_seconds{destination,endpoint}
 	RateLimitWait    *prometheus.HistogramVec // hikyaku_rate_limit_wait_seconds{destination}
 	Delayed          *prometheus.GaugeVec     // hikyaku_delayed_messages{destination}
+	Notifications    *prometheus.CounterVec   // hikyaku_notifications_total{event,outcome}
 	BatchSize        *prometheus.HistogramVec // hikyaku_batch_size{destination}
 	ModelTokens      *prometheus.CounterVec   // hikyaku_model_tokens_total{destination,type}
 	Dropped          *prometheus.CounterVec   // hikyaku_delivery_dropped_total{destination}
@@ -74,6 +75,7 @@ func New() *Metrics {
 		DeliveryDuration: f.histogram("hikyaku_delivery_duration_seconds", "Duration of one delivery attempt.", prometheus.DefBuckets, "destination", "endpoint"),
 		RateLimitWait:    f.histogram("hikyaku_rate_limit_wait_seconds", "Time an attempt waited for its destination's rate_limit. Attempts that did not wait are not counted.", []float64{.005, .025, .1, .25, .5, 1, 2.5, 5, 10, 30}, "destination"),
 		Delayed:          f.gaugeVec("hikyaku_delayed_messages", "Messages a destination's deliver_after or deliver_at holds right now.", "destination"),
+		Notifications:    f.counter("hikyaku_notifications_total", "Alerts of notify rules, by event and outcome (sent, failed, dropped).", "event", "outcome"),
 		BatchSize:        f.histogram("hikyaku_batch_size", "Messages per delivered batch (destination batch:).", []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000}, "destination"),
 		ModelTokens:      f.counter("hikyaku_model_tokens_total", "Tokens used by model destinations (the LLM-proxy mode), by type: input or output.", "destination", "type"),
 		Dropped:          f.counter("hikyaku_delivery_dropped_total", "Messages a best-effort (required: false) destination failed to take.", "destination"),

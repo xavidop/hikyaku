@@ -145,6 +145,7 @@ Every check that is set must pass:
 | Key | Checks |
 |---|---|
 | `hmac` | an HMAC of the body in `header` (`sha256`, `sha1` or `sha512`; `hex` or `base64`; an optional `prefix` such as `sha256=`) |
+| `webhook` | the signature of GitHub, Stripe, Slack, Shopify or Twilio: `provider` and `secret` (http sources; see [Security](/docs/security/#webhooks-from-github-stripe-slack-shopify-and-twilio)) |
 | `bearer` | `Authorization: Bearer <token>` against `tokens` |
 | `jwt` | a JWT verified against `jwks_url`, with optional `issuer`, `audience` and `algorithms` |
 | `api_key` | a key in `header` (default `X-API-Key`) against `keys` |

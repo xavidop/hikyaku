@@ -21,7 +21,25 @@ type Spec struct {
 	Buffer        Buffer            `yaml:"buffer,omitempty" jsonschema_description:"The queue between sources and delivery workers."`
 	Egress        Egress            `yaml:"egress,omitempty" jsonschema_description:"SSRF guard for destinations whose URL host is a per-message template."`
 	Plugins       []PluginBinary    `yaml:"plugins,omitempty" jsonschema_description:"Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares."`
+	Notify        []Notify          `yaml:"notify,omitempty" jsonschema_description:"Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes."`
 }
+
+// Notify is one alert rule.
+type Notify struct {
+	On    []string `yaml:"on,omitempty" jsonschema:"enum=dead_letter,enum=circuit_open,enum=circuit_closed" jsonschema_description:"The events that alert (default dead_letter and circuit_open)."`
+	To    []string `yaml:"to" jsonschema:"required" jsonschema_description:"The destinations that get the alert, a JSON message."`
+	Every Duration `yaml:"every,omitempty" jsonschema_description:"At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m)."`
+}
+
+// The events of notify.on.
+const (
+	NotifyDeadLetter    = "dead_letter"
+	NotifyCircuitOpen   = "circuit_open"
+	NotifyCircuitClosed = "circuit_closed"
+)
+
+// NotifyEvents are the events notify.on accepts.
+var NotifyEvents = []string{NotifyDeadLetter, NotifyCircuitOpen, NotifyCircuitClosed}
 
 // PluginBinary is an out-of-process plugin (see the grpcplugin module).
 type PluginBinary struct {
@@ -276,11 +294,12 @@ type TLS struct {
 
 // Auth is inbound authentication. Every configured method must pass.
 type Auth struct {
-	HMAC    *HMACAuth   `yaml:"hmac,omitempty" jsonschema_description:"Verify an HMAC signature of the body."`
-	Bearer  *BearerAuth `yaml:"bearer,omitempty" jsonschema_description:"Require a bearer token."`
-	JWT     *JWTAuth    `yaml:"jwt,omitempty" jsonschema_description:"Verify a JWT against a JWKS."`
-	APIKey  *APIKeyAuth `yaml:"api_key,omitempty" jsonschema_description:"Require an API key header."`
-	IPAllow []string    `yaml:"ip_allow,omitempty" jsonschema_description:"Allowed client IPs or CIDRs."`
+	HMAC    *HMACAuth    `yaml:"hmac,omitempty" jsonschema_description:"Verify an HMAC signature of the body."`
+	Bearer  *BearerAuth  `yaml:"bearer,omitempty" jsonschema_description:"Require a bearer token."`
+	JWT     *JWTAuth     `yaml:"jwt,omitempty" jsonschema_description:"Verify a JWT against a JWKS."`
+	APIKey  *APIKeyAuth  `yaml:"api_key,omitempty" jsonschema_description:"Require an API key header."`
+	Webhook *WebhookAuth `yaml:"webhook,omitempty" jsonschema_description:"Verify the signature of a well-known webhook sender (http sources)."`
+	IPAllow []string     `yaml:"ip_allow,omitempty" jsonschema_description:"Allowed client IPs or CIDRs."`
 }
 
 // HMACAuth verifies a body signature.
@@ -290,6 +309,14 @@ type HMACAuth struct {
 	Secret   string `yaml:"secret" jsonschema:"required" jsonschema_description:"Shared secret, usually {{secrets.NAME}}."`
 	Prefix   string `yaml:"prefix,omitempty" jsonschema_description:"Prefix before the digest, such as sha256= (stripped if present)."`
 	Encoding string `yaml:"encoding,omitempty" jsonschema:"enum=hex,enum=base64" jsonschema_description:"Digest encoding (default hex)."`
+}
+
+// WebhookAuth verifies a request the way a well-known sender signs it.
+type WebhookAuth struct {
+	Provider  string   `yaml:"provider" jsonschema:"required,enum=github,enum=stripe,enum=slack,enum=shopify,enum=twilio" jsonschema_description:"Who sends the webhook."`
+	Secret    string   `yaml:"secret" jsonschema:"required" jsonschema_description:"The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}."`
+	Tolerance Duration `yaml:"tolerance,omitempty" jsonschema_description:"How old a signed timestamp may be (stripe and slack; default 5m)."`
+	URL       string   `yaml:"url,omitempty" jsonschema_description:"twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme."`
 }
 
 // BearerAuth requires Authorization: Bearer <token>.
@@ -646,6 +673,19 @@ type Transform struct {
 	ContentType string       `yaml:"content_type,omitempty" jsonschema_description:"Set the content type (alone, or after jq or template)."`
 	Redact      []string     `yaml:"redact,omitempty" jsonschema_description:"JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email."`
 	Validate    *SchemaCheck `yaml:"validate,omitempty" jsonschema_description:"Check the JSON body against a JSON Schema; a body that does not match is a failure."`
+	Enrich      *Enrich      `yaml:"enrich,omitempty" jsonschema_description:"Call an HTTP endpoint and put its JSON answer into the JSON body."`
+}
+
+// Enrich is a transform (enrich:) that looks something up over HTTP and
+// adds the answer to the message.
+type Enrich struct {
+	URL     string            `yaml:"url" jsonschema:"required" jsonschema_description:"The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}."`
+	Method  string            `yaml:"method,omitempty" jsonschema:"enum=GET,enum=POST" jsonschema_description:"GET (default), or POST, which sends the message body."`
+	Headers map[string]string `yaml:"headers,omitempty" jsonschema_description:"Request headers (values are templates)."`
+	Into    string            `yaml:"into" jsonschema:"required" jsonschema_description:"Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer."`
+	Timeout Duration          `yaml:"timeout,omitempty" jsonschema_description:"How long the call may take (default 2s)."`
+	Cache   Duration          `yaml:"cache,omitempty" jsonschema_description:"Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache)."`
+	OnError string            `yaml:"on_error,omitempty" jsonschema:"enum=fail,enum=skip" jsonschema_description:"When the call fails: fail (default) fails the transform, skip lets the message go on without the answer."`
 }
 
 // SchemaCheck is a transform (validate:) that checks the body against a JSON Schema. It
