@@ -300,7 +300,10 @@ func TestSourceKeepsAResumedSessionWhenItCannotSubscribeAgain(t *testing.T) {
 			assert.Equal(t, "live", string(env.Body), "the session's subscription still delivers")
 			settle(env, envelope.Delivered)
 			eventuallyInflight(t, b, id, 0)
-			assert.Contains(t, logs.String(), "could not subscribe again")
+			// The session's messages can reach the test before the refused
+			// SUBSCRIBE is answered and logged.
+			require.Eventually(t, func() bool { return strings.Contains(logs.String(), "could not subscribe again") },
+				5*time.Second, 5*time.Millisecond)
 
 			// Without a session, a refused subscription is a failed connect.
 			fresh := newTestSource(t, sourceConfig(b, v, func(c *config.Source) {

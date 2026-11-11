@@ -85,14 +85,52 @@ func (b *broker) start(addr string) {
 	}
 }
 
+// stop shuts the broker down. It does not leave the clients to
+// Server.Close: mochi-mqtt 2.7.9 finds them with Clients.GetByListener,
+// which takes the clients' read lock and then, through Len, takes it again.
+// A client that hangs up or connects in between waits for the write lock,
+// the second read lock waits behind it, and the three block for good (a
+// test then ran into the 10 minute timeout).
+//
+// So stop closes the listener and hangs up on the clients itself, with
+// GetAll (one read lock), until every client goroutine has returned. Close
+// then finds no client to remove.
 func (b *broker) stop() {
 	b.mu.Lock()
 	srv, stopped := b.srv, b.stopped
 	b.stopped = true
 	b.mu.Unlock()
-	if !stopped {
-		_ = srv.Close()
+	if stopped {
+		return
 	}
+	hangUp := func(string) {
+		for _, c := range srv.Clients.GetAll() {
+			if !c.Closed() {
+				_ = srv.DisconnectClient(c, packets.ErrServerShuttingDown)
+			}
+		}
+	}
+	id := "tcp"
+	if b.ws {
+		id = "ws"
+	}
+	srv.Listeners.Close(id, hangUp) // no new connection after this
+	gone := make(chan struct{})
+	go func() { srv.Listeners.ClientsWg.Wait(); close(gone) }()
+	deadline := time.After(10 * time.Second)
+wait:
+	for {
+		select {
+		case <-gone:
+			break wait
+		case <-time.After(5 * time.Millisecond):
+			hangUp(id) // a client that was still connecting
+		case <-deadline:
+			b.t.Errorf("the test broker's clients did not go away within 10s")
+			return
+		}
+	}
+	_ = srv.Close()
 }
 
 // restart replaces the broker with a new one on the same address: every
