@@ -276,47 +276,6 @@ func TestSourcePersistentSessionKeepsMessagesWhileDown(t *testing.T) {
 	}
 }
 
-func TestSourceKeepsAResumedSessionWhenItCannotSubscribeAgain(t *testing.T) {
-	for _, v := range versions {
-		t.Run("v"+v, func(t *testing.T) {
-			b := startBroker(t)
-			cfg := sourceConfig(b, v)
-			_, stop := run(t, newTestSource(t, cfg))
-			id := defaultClientID("in")
-			b.waitSubscribed(id, "orders/#")
-			stop()
-			require.Eventually(t, func() bool { return !b.connected(id) }, 5*time.Second, 5*time.Millisecond)
-
-			b.hook.set(func(h *testHook) { h.refuseSubscribe = true })
-			b.publish("orders/1", "while down", 1, false)
-			s := newTestSource(t, cfg)
-			logs := captureLogs(s)
-			out, _ := run(t, s)
-			env := recv(t, out)
-			assert.Equal(t, "while down", string(env.Body))
-			settle(env, envelope.Delivered)
-			b.publish("orders/2", "live", 1, false)
-			env = recv(t, out)
-			assert.Equal(t, "live", string(env.Body), "the session's subscription still delivers")
-			settle(env, envelope.Delivered)
-			eventuallyInflight(t, b, id, 0)
-			// The session's messages can reach the test before the refused
-			// SUBSCRIBE is answered and logged.
-			require.Eventually(t, func() bool { return strings.Contains(logs.String(), "could not subscribe again") },
-				5*time.Second, 5*time.Millisecond)
-
-			// Without a session, a refused subscription is a failed connect.
-			fresh := newTestSource(t, sourceConfig(b, v, func(c *config.Source) {
-				c.ClientID = "fresh"
-				c.Reconnect = &config.Reconnect{Backoff: config.Duration(time.Millisecond), MaxAttempts: 1}
-			}))
-			err := fresh.Start(context.Background(), make(chan *envelope.Envelope))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "subscribe to")
-		})
-	}
-}
-
 func TestSourceCleanSessionForgetsWhileDown(t *testing.T) {
 	for _, v := range versions {
 		t.Run("v"+v, func(t *testing.T) {

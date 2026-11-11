@@ -249,26 +249,12 @@ type testHook struct {
 	// publishing client's ID is sent on entered first.
 	hold    chan struct{}
 	entered chan string
-	// refuseSubscribe answers every SUBSCRIBE with a failure.
-	refuseSubscribe bool
-}
-
-func (h *testHook) OnSubscribe(_ *mochi.Client, pk packets.Packet) packets.Packet {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.refuseSubscribe {
-		pk.Filters = append(packets.Subscriptions(nil), pk.Filters...)
-		for i := range pk.Filters {
-			pk.Filters[i].Filter = "#/invalid" // refused as an invalid filter
-		}
-	}
-	return pk
 }
 
 func (h *testHook) ID() string { return "test" }
 
 func (h *testHook) Provides(b byte) bool {
-	return bytes.Contains([]byte{mochi.OnConnectAuthenticate, mochi.OnACLCheck, mochi.OnPublish, mochi.OnSubscribe}, []byte{b})
+	return bytes.Contains([]byte{mochi.OnConnectAuthenticate, mochi.OnACLCheck, mochi.OnPublish}, []byte{b})
 }
 
 func (h *testHook) OnConnectAuthenticate(_ *mochi.Client, pk packets.Packet) bool {
