@@ -258,6 +258,7 @@ func (e *Engine) buildDestinations(ctx context.Context) error {
 		if ds.Batch != nil {
 			e.batchers[ds.Name] = newBatcher(e, ds.Name, ds.Batch)
 		}
+		d.limiter = newLimiter(ds.RateLimit)
 		chain, err := transform.Compile(fmt.Sprintf("destination %q.transforms", ds.Name), ds.Transforms)
 		if err != nil {
 			return err

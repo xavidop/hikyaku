@@ -403,6 +403,21 @@ func TestValidateTransforms(t *testing.T) {
 	}
 }
 
+func TestValidateRateLimit(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	_, err := loadYAML(t, dest(`{ name: out, type: stdout, rate_limit: { per_second: 0.5, burst: 10 } }`))
+	require.NoError(t, err)
+	for d, want := range map[string]string{
+		`{ name: out, type: stdout, rate_limit: {} }`:                           `destination "out".rate_limit.per_second: must be above 0`,
+		`{ name: out, type: stdout, rate_limit: { per_second: 5, burst: -1 } }`: `destination "out".rate_limit.burst: must not be negative`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
+
 func TestValidateSign(t *testing.T) {
 	dest := func(d string) string {
 		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)

@@ -186,6 +186,35 @@ allowed. During an outage, this keeps retries from multiplying the load: once th
 spent, messages go to the fallback chain instead. `hikyaku_retry_budget_remaining` shows what is
 left. With a shared `store`, the budget is counted across replicas.
 
+## Rate limit
+
+```yaml
+destinations:
+  - name: partner-api
+    type: https
+    url: https://api.partner.example.com/events
+    rate_limit: { per_second: 50, burst: 100 }
+```
+
+`rate_limit` caps what a destination sends, so the endpoint does not have to answer `429` to
+slow you down. It is a token bucket: `burst` requests may go out at once after a quiet time, and
+then `per_second` requests a second. `burst` defaults to `per_second`, rounded up. `per_second`
+may be below 1: `0.5` is one request every two seconds.
+
+- **Every attempt counts**: first tries, retries and hedged requests. A batch is one request.
+- **A group shares one limit** across its members.
+- **Attempts wait, they are not dropped.** A waiting attempt holds its worker. When a
+  destination is slower than its traffic for long, the buffer fills and the sources see
+  [backpressure](/docs/delivery/), as they do with a slow endpoint.
+- **The deadline still rules.** When the next free slot is past the destination's `deadline`,
+  the attempt does not wait: the message goes to the fallback at once, with the hop outcome
+  `deadline`.
+- **The limit is per relay.** Two replicas with the same `rate_limit` send twice as much, so
+  divide the limit by the number of replicas.
+
+`hikyaku_rate_limit_wait_seconds{destination}` records how long attempts waited. Attempts that
+did not wait are not counted.
+
 ## Idempotency
 
 Delivery is at-least-once: every message is delivered, and some may be delivered more than once.

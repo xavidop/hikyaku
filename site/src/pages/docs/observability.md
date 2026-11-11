@@ -126,6 +126,7 @@ This is every metric hikyaku exports. They sit next to the Go runtime (`go_*`) a
 | `hikyaku_deduped_total` | `source` | messages a source's `dedupe` dropped: their key was seen within the `ttl` |
 | `hikyaku_queue_depth` | | messages waiting in the buffer: the memory queue, or the disk buffer with `buffer.type: disk` (gauge) |
 | `hikyaku_backpressure_total` | `source` | messages a source refused because the relay's buffer was full: http and openai answer 503, grpc `RESOURCE_EXHAUSTED`, udp drops the datagram |
+| `hikyaku_rate_limit_wait_seconds` | `destination` | histogram: how long an attempt waited for its destination's `rate_limit`; attempts that did not wait are not counted |
 | `hikyaku_schema_invalid_total` | `route` | messages a route's `validate` step refused: the body did not match its JSON Schema |
 | `hikyaku_route_decisions_total` | `route`, `router` | routing decisions, by the router that decided |
 | `hikyaku_router_fallback_total` | `route`, `to` | moves to the next router of a chain |

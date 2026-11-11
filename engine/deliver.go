@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 
 	"github.com/xavidop/hikyaku/envelope"
 	"github.com/xavidop/hikyaku/metrics"
@@ -29,6 +30,7 @@ type destination struct {
 	group      *group
 	fallback   []string
 	budget     *retryBudget
+	limiter    *rate.Limiter // rate_limit; nil without one
 }
 
 // Hop is one destination tried for a message: the primary or a fallback.

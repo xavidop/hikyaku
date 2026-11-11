@@ -446,6 +446,14 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 				v.add(fmt.Sprintf("%s.transforms[%d].validate.on_invalid", p, j), "applies to a route's transforms: on a destination, give the destination a fallback")
 			}
 		}
+		if rl := d.RateLimit; rl != nil {
+			if rl.PerSecond <= 0 {
+				v.add(p+".rate_limit.per_second", "must be above 0")
+			}
+			if rl.Burst < 0 {
+				v.add(p+".rate_limit.burst", "must not be negative")
+			}
+		}
 		v.batch(p, d.Batch)
 		if d.Batch != nil && (d.Type == "model" || slices.ContainsFunc(d.Members, func(m Member) bool { return m.Type == "model" })) {
 			v.add(p+".batch", "does not apply to a model destination: a model answers one chat request per message")
