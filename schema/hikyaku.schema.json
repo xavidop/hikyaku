@@ -138,6 +138,10 @@
           "$ref": "#/$defs/APIKeyAuth",
           "description": "Require an API key header."
         },
+        "webhook": {
+          "$ref": "#/$defs/WebhookAuth",
+          "description": "Verify the signature of a well-known webhook sender (http sources)."
+        },
         "ip_allow": {
           "items": {
             "type": "string"
@@ -2996,6 +3000,39 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "WebhookAuth": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "github",
+            "stripe",
+            "slack",
+            "shopify",
+            "twilio"
+          ],
+          "description": "Who sends the webhook."
+        },
+        "secret": {
+          "type": "string",
+          "description": "The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}."
+        },
+        "tolerance": {
+          "$ref": "#/$defs/Duration",
+          "description": "How old a signed timestamp may be (stripe and slack; default 5m)."
+        },
+        "url": {
+          "type": "string",
+          "description": "twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "secret"
+      ]
     },
     "Window": {
       "properties": {

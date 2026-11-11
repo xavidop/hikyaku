@@ -392,6 +392,9 @@ func (v *validator) sources() map[string]bool {
 			if a.Bearer != nil && len(a.Bearer.Tokens) == 0 {
 				v.add(p+".auth.bearer.tokens", "is required")
 			}
+			if w := a.Webhook; w != nil {
+				v.webhookAuth(p+".auth.webhook", src.Type, w)
+			}
 			if a.JWT != nil && a.JWT.JWKSURL == "" {
 				v.add(p+".auth.jwt.jwks_url", "is required")
 			}
@@ -406,6 +409,27 @@ func (v *validator) sources() map[string]bool {
 		}
 	}
 	return names
+}
+
+// WebhookProviders are the senders auth.webhook can verify.
+var WebhookProviders = []string{"github", "stripe", "slack", "shopify", "twilio"}
+
+func (v *validator) webhookAuth(p, sourceType string, w *WebhookAuth) {
+	if sourceType != "http" {
+		v.add(p, "applies to http sources only: it signs the request body")
+	}
+	if !slices.Contains(WebhookProviders, w.Provider) {
+		v.add(p+".provider", "must be one of %s", strings.Join(WebhookProviders, ", "))
+	}
+	if w.Secret == "" {
+		v.add(p+".secret", "is required")
+	}
+	if w.Tolerance != 0 && w.Provider != "stripe" && w.Provider != "slack" {
+		v.add(p+".tolerance", "applies to stripe and slack only: %s signs no timestamp", w.Provider)
+	}
+	if w.URL != "" && w.Provider != "twilio" {
+		v.add(p+".url", "applies to twilio only")
+	}
 }
 
 func validIPOrCIDR(s string) bool {
@@ -577,6 +601,8 @@ func (v *validator) endpoint(p string, e Endpoint) {
 			v.add(p+".auth", "applies to sse destinations only: it checks the clients that read the stream")
 		case e.Auth.HMAC != nil:
 			v.add(p+".auth.hmac", "does not apply: a client reading the stream sends no body to sign")
+		case e.Auth.Webhook != nil:
+			v.add(p+".auth.webhook", "does not apply: a client reading the stream sends no body to sign")
 		}
 	}
 	if e.Frame != "" && !slices.Contains([]string{"ws", "wss", "tcp", "udp"}, e.Type) {

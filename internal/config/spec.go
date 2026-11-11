@@ -276,11 +276,12 @@ type TLS struct {
 
 // Auth is inbound authentication. Every configured method must pass.
 type Auth struct {
-	HMAC    *HMACAuth   `yaml:"hmac,omitempty" jsonschema_description:"Verify an HMAC signature of the body."`
-	Bearer  *BearerAuth `yaml:"bearer,omitempty" jsonschema_description:"Require a bearer token."`
-	JWT     *JWTAuth    `yaml:"jwt,omitempty" jsonschema_description:"Verify a JWT against a JWKS."`
-	APIKey  *APIKeyAuth `yaml:"api_key,omitempty" jsonschema_description:"Require an API key header."`
-	IPAllow []string    `yaml:"ip_allow,omitempty" jsonschema_description:"Allowed client IPs or CIDRs."`
+	HMAC    *HMACAuth    `yaml:"hmac,omitempty" jsonschema_description:"Verify an HMAC signature of the body."`
+	Bearer  *BearerAuth  `yaml:"bearer,omitempty" jsonschema_description:"Require a bearer token."`
+	JWT     *JWTAuth     `yaml:"jwt,omitempty" jsonschema_description:"Verify a JWT against a JWKS."`
+	APIKey  *APIKeyAuth  `yaml:"api_key,omitempty" jsonschema_description:"Require an API key header."`
+	Webhook *WebhookAuth `yaml:"webhook,omitempty" jsonschema_description:"Verify the signature of a well-known webhook sender (http sources)."`
+	IPAllow []string     `yaml:"ip_allow,omitempty" jsonschema_description:"Allowed client IPs or CIDRs."`
 }
 
 // HMACAuth verifies a body signature.
@@ -290,6 +291,14 @@ type HMACAuth struct {
 	Secret   string `yaml:"secret" jsonschema:"required" jsonschema_description:"Shared secret, usually {{secrets.NAME}}."`
 	Prefix   string `yaml:"prefix,omitempty" jsonschema_description:"Prefix before the digest, such as sha256= (stripped if present)."`
 	Encoding string `yaml:"encoding,omitempty" jsonschema:"enum=hex,enum=base64" jsonschema_description:"Digest encoding (default hex)."`
+}
+
+// WebhookAuth verifies a request the way a well-known sender signs it.
+type WebhookAuth struct {
+	Provider  string   `yaml:"provider" jsonschema:"required,enum=github,enum=stripe,enum=slack,enum=shopify,enum=twilio" jsonschema_description:"Who sends the webhook."`
+	Secret    string   `yaml:"secret" jsonschema:"required" jsonschema_description:"The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}."`
+	Tolerance Duration `yaml:"tolerance,omitempty" jsonschema_description:"How old a signed timestamp may be (stripe and slack; default 5m)."`
+	URL       string   `yaml:"url,omitempty" jsonschema_description:"twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme."`
 }
 
 // BearerAuth requires Authorization: Bearer <token>.

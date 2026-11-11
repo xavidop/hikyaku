@@ -53,6 +53,7 @@ The caller's credentials never enter a message. `Authorization`, `Proxy-Authoriz
 | Key | Checks |
 |---|---|
 | `hmac` | An HMAC of the body in `header`, with `secret`. `algo`: `sha256` (default), `sha1` or `sha512`. `encoding`: `hex` (default) or `base64`. `prefix` is cut from the header value before the comparison; without one, a short `name=` prefix such as `sha256=` is cut. |
+| `webhook` | The signature of a well-known sender: `provider` is `github`, `stripe`, `slack`, `shopify` or `twilio`, and `secret` is the secret that sender gave you. `tolerance` (stripe, slack; default `5m`) is how old the signed timestamp may be. `url` (twilio) is the public URL Twilio calls, for a relay behind a proxy. |
 | `bearer` | `Authorization: Bearer <token>` against `tokens`. |
 | `jwt` | A bearer JWT verified with the keys at `jwks_url`, with optional `issuer` and `audience`. `algorithms` defaults to `RS256` and `ES256`. Clock skew of up to 30s is allowed. |
 | `api_key` | A key in `header` (default `X-API-Key`) against `keys`. With `query`, a query parameter may carry it when the header is absent (for clients that cannot set headers); it is dropped from `http.query`. |

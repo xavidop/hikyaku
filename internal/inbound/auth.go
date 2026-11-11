@@ -1,6 +1,7 @@
 // Package inbound authenticates requests to listen sources: HMAC body
-// signatures, bearer tokens, JWTs verified against a JWKS, API keys and IP
-// allowlists. Every configured method must pass.
+// signatures, the signatures of well-known webhook senders, bearer tokens,
+// JWTs verified against a JWKS, API keys and IP allowlists. Every
+// configured method must pass.
 package inbound
 
 import (
@@ -41,6 +42,7 @@ type Authenticator struct {
 	apiQuery string
 	jwt      *jwtCheck
 	allow    []*net.IPNet
+	webhook  *webhookCheck
 }
 
 type jwtCheck struct {
@@ -101,6 +103,13 @@ func New(ctx context.Context, a *config.Auth) (*Authenticator, error) {
 		}
 		out.jwt = &jwtCheck{kf: kf, opts: opts}
 	}
+	if w := a.Webhook; w != nil {
+		wc, err := newWebhookCheck(w)
+		if err != nil {
+			return nil, err
+		}
+		out.webhook = wc
+	}
 	for _, ip := range a.IPAllow {
 		if !strings.Contains(ip, "/") {
 			if strings.Contains(ip, ":") {
@@ -118,8 +127,9 @@ func New(ctx context.Context, a *config.Auth) (*Authenticator, error) {
 	return out, nil
 }
 
-// NeedsBody reports whether the checks read the request body (HMAC).
-func (a *Authenticator) NeedsBody() bool { return a != nil && a.hmac != nil }
+// NeedsBody reports whether the checks read the request body (HMAC, or a
+// webhook sender's signature).
+func (a *Authenticator) NeedsBody() bool { return a != nil && (a.hmac != nil || a.webhook != nil) }
 
 // Check verifies a request; body is the request body for HMAC (nil when
 // there is none, as on a WebSocket upgrade).
@@ -134,6 +144,11 @@ func (a *Authenticator) Check(r *http.Request, body []byte) error {
 	}
 	if a.hmac != nil {
 		if err := a.checkHMAC(r, body); err != nil {
+			return err
+		}
+	}
+	if a.webhook != nil {
+		if err := a.webhook.check(r, body); err != nil {
 			return err
 		}
 	}

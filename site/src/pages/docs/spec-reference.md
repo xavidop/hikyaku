@@ -544,6 +544,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `bearer` | [BearerAuth](#bearerauth) | Require a bearer token. |
 | `jwt` | [JWTAuth](#jwtauth) | Verify a JWT against a JWKS. |
 | `api_key` | [APIKeyAuth](#apikeyauth) | Require an API key header. |
+| `webhook` | [WebhookAuth](#webhookauth) | Verify the signature of a well-known webhook sender (http sources). |
 | `ip_allow` | string[] | Allowed client IPs or CIDRs. |
 
 ## `Azure`
@@ -873,6 +874,15 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `client_ca_file` | string | listen: CA bundle that verifies client certificates (mTLS). |
 | `server_name` | string | SNI and verification name. |
 | `insecure_skip_verify` | boolean | Skip server verification (development only). |
+
+## `WebhookAuth`
+
+| Key | Type | Description |
+|---|---|---|
+| `provider` **(required)** | string | Who sends the webhook. One of `github`, `stripe`, `slack`, `shopify`, `twilio`. |
+| `secret` **(required)** | string | The signing secret the sender gave you (for twilio, the auth token), usually {{secrets.NAME}}. |
+| `tolerance` | [Duration](#duration) | How old a signed timestamp may be (stripe and slack; default 5m). |
+| `url` | string | twilio only: the public URL Twilio calls, when a proxy in front of the relay changes the host or scheme. |
 
 ## Scalar types
 

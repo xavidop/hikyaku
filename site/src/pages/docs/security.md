@@ -40,6 +40,7 @@ certificate. Both work on both sides of hikyaku:
 Listen sources check who is calling with `auth:`. The methods are:
 
 - an **HMAC** signature of the body (a hash made with a shared secret);
+- the signature of a **well-known webhook sender**: GitHub, Stripe, Slack, Shopify or Twilio;
 - a **JWT** verified against a **JWKS** (the issuer's published keys), with issuer, audience and
   algorithms;
 - an **API key** header;
@@ -48,7 +49,48 @@ Listen sources check who is calling with `auth:`. The methods are:
 
 A listen source without `auth` accepts any caller, and `hikyaku lint` warns about it.
 [Protocols](/docs/protocols/#listen) lists the keys. An sse destination takes the same `auth`
-(without `hmac`) for the clients that read its stream.
+(without `hmac` and `webhook`) for the clients that read its stream.
+
+### Webhooks from GitHub, Stripe, Slack, Shopify and Twilio
+
+Each of these senders signs its requests in its own way. `auth.webhook` on an http source checks
+the signature the way that sender makes it, so you only give the provider and the secret:
+
+```yaml
+sources:
+  - name: stripe-events
+    type: http
+    listen: ":8080"
+    path: /hooks/stripe
+    auth:
+      webhook:
+        provider: stripe
+        secret: "{{secrets.STRIPE_WEBHOOK_SECRET}}"
+```
+
+| `provider` | `secret` is | What is checked |
+|---|---|---|
+| `github` | the webhook's secret | `X-Hub-Signature-256`: an HMAC-SHA256 of the body |
+| `stripe` | the endpoint's signing secret (`whsec_...`) | `Stripe-Signature`: an HMAC-SHA256 of the timestamp and the body, and the timestamp's age |
+| `slack` | the app's signing secret | `X-Slack-Signature`: an HMAC-SHA256 of `X-Slack-Request-Timestamp` and the body, and the timestamp's age |
+| `shopify` | the app's client secret | `X-Shopify-Hmac-Sha256`: an HMAC-SHA256 of the body |
+| `twilio` | the account's auth token | `X-Twilio-Signature`: an HMAC-SHA1 of the URL Twilio called and the form fields. For a JSON body, the URL and its `bodySHA256` |
+
+A request that fails the check gets a `401`, and no message is made.
+
+- **`tolerance`** (stripe and slack) is how old the signed timestamp may be. The default is `5m`.
+  An older request is refused even with a good signature, so a captured request cannot be sent
+  again later.
+- **`url`** (twilio) is the public URL Twilio calls. Twilio signs that URL, so set it when a proxy
+  or load balancer in front of the relay changes the host or the scheme. Without it, hikyaku
+  uses the request's `Host` and `X-Forwarded-Proto`. The query string may be left out of `url`:
+  the request's own is used.
+- Stripe signs with two secrets for a while when you roll the secret. One good signature is
+  enough.
+
+The signature headers stay on the message: they prove one body and are not a credential.
+
+For any other sender, use `hmac` and set its header, prefix and encoding.
 
 `api_key.query` names a query parameter that may carry the key when the header is absent. It is
 for clients that cannot set headers, such as a browser's `EventSource` or `WebSocket`. URLs end

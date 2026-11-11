@@ -436,6 +436,31 @@ func TestValidateSign(t *testing.T) {
 	}
 }
 
+func TestValidateWebhookAuth(t *testing.T) {
+	src := func(s string) string {
+		return strings.Replace(minimal, "  - { name: in, type: stdin }", "  - "+s, 1)
+	}
+	require.Contains(t, minimal, "  - { name: in, type: stdin }")
+	for _, ok := range []string{
+		`{ name: in, type: http, listen: ":8080", path: /gh, auth: { webhook: { provider: github, secret: k } } }`,
+		`{ name: in, type: http, listen: ":8080", path: /st, auth: { webhook: { provider: stripe, secret: k, tolerance: 10m } } }`,
+		`{ name: in, type: http, listen: ":8080", path: /tw, auth: { webhook: { provider: twilio, secret: k, url: "https://x.test/tw" } } }`,
+	} {
+		_, err := loadYAML(t, src(ok))
+		require.NoError(t, err, ok)
+	}
+	for s, want := range map[string]string{
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: paypal, secret: k } } }`:                  `source "in".auth.webhook.provider: must be one of github, stripe, slack, shopify, twilio`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: github } } }`:                             `source "in".auth.webhook.secret: is required`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: github, secret: k, tolerance: 1m } } }`:   `source "in".auth.webhook.tolerance: applies to stripe and slack only`,
+		`{ name: in, type: http, listen: ":8080", auth: { webhook: { provider: slack, secret: k, url: "https://x" } } }`: `source "in".auth.webhook.url: applies to twilio only`,
+		`{ name: in, type: ws, listen: ":8080", path: /ws, auth: { webhook: { provider: github, secret: k } } }`:         `source "in".auth.webhook: applies to http sources only`,
+	} {
+		_, err := loadYAML(t, src(s))
+		assert.Contains(t, errText(t, err), want, s)
+	}
+}
+
 func TestValidateToAndRouterBoth(t *testing.T) {
 	_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], router: { type: static, to: [out, out] } }", 1))
 	assert.Contains(t, errText(t, err), "set to: or router:, not both")
