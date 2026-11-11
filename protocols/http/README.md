@@ -153,10 +153,44 @@ A `2xx` answer is a success. Its status, headers and body (up to 10MiB) are the 
 | `body` | Per-message template of the request body (default: the message body). |
 | `tls` | Client TLS: `ca_file`, `cert_file` + `key_file`, `server_name`, `insecure_skip_verify`. An `https` destination uses TLS 1.2 or newer. |
 | `idempotency_header` | The header that carries the idempotency key (default `Idempotency-Key`). |
+| `sign` | Sign every request with an HMAC of its body. See [Signing](#signing). |
 
 `timeout`, `retry`, the circuit breaker, groups, hedging, `batch` and the fallback chain work as for every destination. With `batch`, one request carries the whole batch: an NDJSON body (`application/x-ndjson`, the default) or a JSON array (`batch.format: json_array`). In a group, a member with `health_check.path` is probed with a `GET` on its origin plus that path. Otherwise the health check dials the host of a static URL and sends no request, because a webhook endpoint should not see probes. A templated URL's health check always passes.
 
 The client follows up to 10 redirects. It uses `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, except for a templated URL.
+
+### Signing
+
+```yaml
+destinations:
+  - name: customer-hook
+    type: https
+    url: https://customer.example.com/webhooks
+    sign:
+      secret: "{{secrets.WEBHOOK_SECRET}}"
+      prefix: "sha256="
+      timestamp_header: X-Timestamp
+```
+
+`sign` adds an HMAC of the request body, made with a shared secret, so the receiver can check that the request came from you and was not changed on the way. The signature covers the bytes that go out: the rendered `body` template when there is one, or the whole batch with `batch`. Every retry is signed again. A signature header the message came in with is replaced.
+
+| Key | Meaning |
+|---|---|
+| `secret` | The shared secret. Required. Use `{{secrets.NAME}}`. |
+| `header` | The header that carries the signature (default `X-Signature-256`). |
+| `algo` | `sha256` (default) or `sha512`. |
+| `encoding` | `hex` (default) or `base64`. |
+| `prefix` | Text put before the digest, such as `sha256=`. |
+| `timestamp_header` | When set, this header carries the send time in Unix seconds, and the signature covers `<timestamp>.<body>`. A receiver that refuses old timestamps cannot be sent a captured request again later. |
+
+Without `timestamp_header`, a hikyaku source with the same `auth.hmac` settings (`header`, `secret`, `algo`, `encoding`, `prefix`) verifies the signature. A source's `auth.hmac` checks the body alone, so it does not verify a request signed with `timestamp_header`.
+
+The receiver computes the same HMAC over what it received and compares the two in constant time:
+
+```python
+expected = "sha256=" + hmac.new(secret, timestamp + b"." + body, hashlib.sha256).hexdigest()
+ok = hmac.compare_digest(expected, request.headers["X-Signature-256"])
+```
 
 ### Egress
 

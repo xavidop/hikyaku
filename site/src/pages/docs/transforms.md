@@ -221,7 +221,7 @@ destinations:
   - name: bad-orders
     type: https
     url: https://hooks.example.com/alerts
-    body: '{"text": "Bad order from {{ .source }}: {{ index .attributes "schema.error" }}"}'
+    body: '{"text": {{ printf "Bad order from %s: %s" .source (index .attributes "schema.error") | json }}}'
 ```
 
 - The route's own destinations do not get the message.

@@ -403,6 +403,24 @@ func TestValidateTransforms(t *testing.T) {
 	}
 }
 
+func TestValidateSign(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	require.Contains(t, minimal, "  - { name: out, type: stdout }")
+	_, err := loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", sign: { secret: k, prefix: "sha256=", timestamp_header: X-Timestamp } }`))
+	require.NoError(t, err)
+	for d, want := range map[string]string{
+		`{ name: out, type: stdout, sign: { secret: k } }`:                                       `destination "out".sign: applies to http and https destinations`,
+		`{ name: out, type: http, url: "http://x.test", sign: {} }`:                              `destination "out".sign.secret: is required`,
+		`{ name: out, type: http, url: "http://x.test", sign: { secret: k, algo: sha1 } }`:       `destination "out".sign.algo: must be sha256 or sha512`,
+		`{ name: out, type: http, url: "http://x.test", sign: { secret: k, encoding: base32 } }`: `destination "out".sign.encoding: must be hex or base64`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
+
 func TestValidateToAndRouterBoth(t *testing.T) {
 	_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], router: { type: static, to: [out, out] } }", 1))
 	assert.Contains(t, errText(t, err), "set to: or router:, not both")

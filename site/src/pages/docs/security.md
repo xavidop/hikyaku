@@ -61,6 +61,33 @@ and openai listen sources drop the credential headers before the message exists:
 `http.query`. So a credential never reaches a destination, a file, the dead-letter queue, the
 routing history or `hikyaku tail`.
 
+## Signed deliveries
+
+An http or https destination can sign what it sends, so the receiver can check that a request
+came from your relay and was not changed on the way:
+
+```yaml
+destinations:
+  - name: customer-hook
+    type: https
+    url: https://customer.example.com/webhooks
+    sign:
+      secret: "{{secrets.WEBHOOK_SECRET}}"
+      prefix: "sha256="
+      timestamp_header: X-Timestamp
+```
+
+- `sign` adds an HMAC of the request body in `header` (default `X-Signature-256`), with `algo`
+  `sha256` (default) or `sha512`, and `encoding` `hex` (default) or `base64`.
+- With `timestamp_header`, that header carries the send time in Unix seconds, and the signature
+  covers `<timestamp>.<body>`. A receiver that refuses old timestamps cannot be sent a captured
+  request again later.
+- The signature covers the bytes that go out, and every retry is signed again.
+
+It is the sending side of a source's `auth.hmac`: without `timestamp_header`, a hikyaku source
+with the same settings verifies it. [The http module's README](https://github.com/xavidop/hikyaku/tree/main/protocols/http#signing)
+has every key and a receiver's check.
+
 ## SSRF guard
 
 SSRF (server-side request forgery) is an attack where someone makes a server send a request to a
