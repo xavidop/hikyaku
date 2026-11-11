@@ -153,6 +153,9 @@ later) cannot slip past it. A redirect is checked against `egress.allow` like th
 the chain stops after 10 redirects. URLs without a templated host are yours, written in the
 spec, and are not restricted.
 
+The same guard covers the call of an [`enrich`](/docs/transforms/#enrich) transform whose `url`
+has a template in it.
+
 ## Secrets
 
 - `secrets:` holds [mamori](https://github.com/xavidop/mamori) refs (`env:`, `file://`,

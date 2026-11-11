@@ -63,6 +63,10 @@ These record where the build departs from the design, and the decisions the desi
   - Per rule, event and subject (endpoint, destination or route): the first event is sent, the next ones are counted until `every` passes, then sent as one alert with `count` and `since`.
   - A worker delivers with `e.deliver`, not `DeliverTo`: a failed alert is logged and counted (`hikyaku_notifications_total`), never dead-lettered. An alert is not sent to the destination it is about.
   - Only `Run` starts the notifier, and `Close` stops it before the sinks close.
+- **`enrich` transform:** `transform/enrich.go`. One HTTP call (GET, or POST with the body), no retry; the JSON answer goes under `into`. `on_error: skip` covers the call only, not a body that is not a JSON object.
+  - `transform.CompileWith` takes `Options{Egress}`; the engine passes the spec's. `Compile` (used by `engine.Check`) passes none.
+  - The SSRF guard moved to `internal/egress` (protocols/http aliases it). It guards an `enrich` whose URL has a template, like an http destination's.
+  - `cache` is in-process, per step, keyed by the rendered URL and headers, at most 10,000 answers.
 - **`redact` transform:** the JSONPaths of `router.input.redact`, applied to the body. A body that is not JSON is a failure, never a pass.
 - **`sign` (http destinations):** `protocols/http/sign.go`, the sending side of `auth.hmac`. It signs last, over the bytes that go out. `timestamp_header` makes the signature cover `<timestamp>.<body>`, which `auth.hmac` does not verify.
 - **`rate_limit` (destinations):** one `x/time/rate` bucket per destination, in this process only. `tryEndpoint` takes a token before every attempt and waits holding the worker. A turn past the deadline fails at once with the `deadline` outcome.

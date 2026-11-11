@@ -403,6 +403,27 @@ func TestValidateTransforms(t *testing.T) {
 	}
 }
 
+func TestValidateEnrich(t *testing.T) {
+	with := func(transforms string) string {
+		return strings.Replace(minimal, "to: [out] }", "to: [out], transforms: "+transforms+" }", 1)
+	}
+	_, err := loadYAML(t, with(`[{ enrich: { url: "https://crm.test/c/{{ .json.id }}", into: meta.customer, cache: 5m, timeout: 1s, on_error: skip, headers: { Authorization: "Bearer k" } } }]`))
+	require.NoError(t, err)
+	for transforms, want := range map[string]string{
+		`[{ enrich: { into: c } }]`:                                                 "enrich.url: is required",
+		`[{ enrich: { url: "https://x.test" } }]`:                                   "enrich.into: is required",
+		`[{ enrich: { url: "https://x.test", into: "a..b" } }]`:                     `enrich.into: "a..b" is not a key or a dotted path of keys`,
+		`[{ enrich: { url: "https://x.test", into: c, method: PUT } }]`:             "enrich.method: must be GET or POST",
+		`[{ enrich: { url: "https://x.test", into: c, on_error: retry } }]`:         "enrich.on_error: must be fail or skip",
+		`[{ enrich: { url: "https://x.test", into: c, method: POST, cache: 1m } }]`: "enrich.cache: applies to GET only",
+		`[{ enrich: { url: "https://x.test", into: c }, jq: . }]`:                   "set only one of",
+		`[{ enrich: { url: "https://x.test", into: c }, content_type: a/b }]`:       "content_type does not go with enrich",
+	} {
+		_, err := loadYAML(t, with(transforms))
+		assert.Contains(t, errText(t, err), want, transforms)
+	}
+}
+
 func TestValidateRateLimit(t *testing.T) {
 	dest := func(d string) string {
 		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)

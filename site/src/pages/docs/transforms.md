@@ -36,8 +36,8 @@ destinations:
         content_type: application/json
 ```
 
-**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers`, `codec`, `redact`
-and `validate`, or `content_type` on its own. `content_type` may also go with a `jq` or `template`
+**Each entry sets exactly one of** `filter`, `jq`, `template`, `headers`, `codec`, `redact`,
+`validate` and `enrich`, or `content_type` on its own. `content_type` may also go with a `jq` or `template`
 entry, to label what that entry produced. Validation rejects an entry with two operations. It
 also compiles every CEL expression, jq program, template and JSON Schema before the relay
 starts.
@@ -234,6 +234,66 @@ destinations:
 
 Put `validate` first to check what the sender sent, or after a `jq` step to check what you are
 about to deliver.
+
+## enrich
+
+```yaml
+routes:
+  - name: orders
+    from: [webhooks]
+    transforms:
+      - enrich:
+          url: "https://crm.internal/customers/{{ .json.customer_id | urlquery }}"
+          headers: { Authorization: "Bearer {{secrets.CRM_TOKEN}}" }
+          into: customer
+          cache: 5m
+    router:
+      type: rules
+      rules:
+        - { when: 'msg.json.customer.tier == "gold"', to: [vip-queue] }
+      default: [standard-queue]
+```
+
+`enrich` calls an HTTP endpoint and puts its JSON answer into the message, under the `into` key.
+The steps after it, the router and the destinations then see the answer like any other part of
+the body. In the example, an order that arrives as `{"id": "o-1", "customer_id": 42}` goes on as:
+
+```json
+{"id": "o-1", "customer_id": 42, "customer": {"tier": "gold", "country": "ES"}}
+```
+
+| Key | Meaning |
+|---|---|
+| `url` | The endpoint to call. It is a per-message template. |
+| `method` | `GET` (default), or `POST`, which sends the message body. |
+| `headers` | Request headers. The values are templates. |
+| `into` | Where the answer goes: a key, or a dotted path such as `meta.customer`. Missing objects on the way are made. A value already there is replaced. |
+| `timeout` | How long the call may take (default `2s`). |
+| `cache` | Keep each answer this long and skip the call meanwhile (`GET` only). Without it, every message calls. |
+| `on_error` | `fail` (default) or `skip`. |
+
+Things to know:
+
+- **The message body must be a JSON object**, and the answer must be JSON with a `2xx` status.
+  An answer over 1 MiB is refused.
+- **A failed call fails the step** (`on_error: fail`): a wrong status, no answer within
+  `timeout`, an answer that is not JSON. On a route, the message is
+  [dead-lettered](/docs/resilience/#dead-letters-and-replay) with reason `transform`, and
+  `hikyaku dlq replay` sends it through the route again, which calls again. On a destination it
+  is a failed hop, so a fallback can take the message. The call is tried once.
+- **`on_error: skip`** lets the message go on without the answer. Use it when the answer is nice
+  to have. Rules and templates after it must then cope with the missing key.
+- **The cache** is kept in memory, per `enrich` step and per relay process, for up to 10,000
+  answers. The key is the rendered URL and headers. A failed call is not cached.
+- **Put values into the URL with `urlquery`**, as the example does. A value from the message is
+  otherwise copied as it is, and a `/` or a `?` in it would change the URL. A missing key renders
+  as empty.
+- **The [SSRF guard](/docs/security/#ssrf-guard) applies** when the URL has a template in it:
+  the call cannot reach a private or loopback address unless `egress` allows it. So an internal
+  service such as `crm.internal` needs `egress.allow_private: true` or its network in
+  `egress.allow`. A URL with no template in it is not guarded.
+- `hikyaku route --dry-run` runs the transforms, so it makes the call too.
+- `content_type` does not go with `enrich`: the body stays JSON.
 
 ## content_type
 

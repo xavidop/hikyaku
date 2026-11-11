@@ -271,7 +271,7 @@ func (e *Engine) buildDestinations(ctx context.Context) error {
 			}
 			d.deliverAt = t
 		}
-		chain, err := transform.Compile(fmt.Sprintf("destination %q.transforms", ds.Name), ds.Transforms)
+		chain, err := transform.CompileWith(fmt.Sprintf("destination %q.transforms", ds.Name), ds.Transforms, e.transformOptions())
 		if err != nil {
 			return err
 		}
@@ -365,7 +365,7 @@ func (e *Engine) buildRoutes(ctx context.Context) error {
 			}
 			r.filter = x
 		}
-		chain, err := transform.Compile(fmt.Sprintf("route %q.transforms", rs.Name), rs.Transforms)
+		chain, err := transform.CompileWith(fmt.Sprintf("route %q.transforms", rs.Name), rs.Transforms, e.transformOptions())
 		if err != nil {
 			return err
 		}
@@ -644,3 +644,9 @@ func (e *Engine) closeStores() {
 
 // Buffer is the queue sources send on (tests).
 func (e *Engine) Buffer() chan<- *envelope.Envelope { return e.buffer }
+
+// transformOptions is what transforms need from the spec: the egress guard
+// of enrich steps.
+func (e *Engine) transformOptions() transform.Options {
+	return transform.Options{Egress: plugin.Egress{Allow: e.spec.Egress.Allow, AllowPrivate: e.spec.Egress.AllowPrivate}}
+}

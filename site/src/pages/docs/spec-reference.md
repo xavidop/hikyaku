@@ -419,6 +419,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `content_type` | string | Set the content type (alone, or after jq or template). |
 | `redact` | string[] | JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email. |
 | `validate` | [SchemaCheck](#schemacheck) | Check the JSON body against a JSON Schema; a body that does not match is a failure. |
+| `enrich` | [Enrich](#enrich) | Call an HTTP endpoint and put its JSON answer into the JSON body. |
 
 ## `HeaderOps`
 
@@ -602,6 +603,18 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 |---|---|---|
 | `allow` | string[] | Hosts (exact, or *.suffix) and CIDRs a templated URL may reach. |
 | `allow_private` | boolean | Let templated URLs reach private, loopback and link-local addresses. |
+
+## `Enrich`
+
+| Key | Type | Description |
+|---|---|---|
+| `url` **(required)** | string | The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}. |
+| `method` | string | GET (default), or POST, which sends the message body. One of `GET`, `POST`. |
+| `headers` | map of string | Request headers (values are templates). |
+| `into` **(required)** | string | Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer. |
+| `timeout` | [Duration](#duration) | How long the call may take (default 2s). |
+| `cache` | [Duration](#duration) | Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache). |
+| `on_error` | string | When the call fails: fail (default) fails the transform, skip lets the message go on without the answer. One of `fail`, `skip`. |
 
 ## `Fault`
 

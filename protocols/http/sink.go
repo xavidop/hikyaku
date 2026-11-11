@@ -114,7 +114,7 @@ func newSink(s plugin.Spec) (*Sink, error) {
 			return nil, fmt.Errorf("destination %s: %w", s.Name, err)
 		}
 		sk.guard = g
-		tr.DialContext = g.dialer(base)
+		tr.DialContext = g.Dialer(base)
 		tr.Proxy = nil // a proxy would dial for us, around the guard
 	}
 	sk.client = &http.Client{Transport: tr}
@@ -125,7 +125,7 @@ func newSink(s plugin.Spec) (*Sink, error) {
 			if len(via) >= 10 {
 				return errors.New("stopped after 10 redirects")
 			}
-			return sk.guard.checkHost(req.URL.Hostname())
+			return sk.guard.CheckHost(req.URL.Hostname())
 		}
 	}
 	return sk, nil
@@ -149,7 +149,7 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 		if err != nil || (pu.Scheme != "http" && pu.Scheme != "https") || pu.Hostname() == "" {
 			return nil, plugin.Permanentf("rendered url %q is not an http(s) URL", u)
 		}
-		if err := s.guard.checkHost(pu.Hostname()); err != nil {
+		if err := s.guard.CheckHost(pu.Hostname()); err != nil {
 			return nil, err
 		}
 		target = u

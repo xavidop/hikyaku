@@ -890,7 +890,7 @@ func (v *validator) ai(p string, rs *RouterSpec, dests, stores map[string]bool) 
 func (v *validator) transforms(p string, ts []Transform) {
 	for i, t := range ts {
 		set := 0
-		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil, len(t.Redact) > 0} {
+		for _, ok := range []bool{t.Filter != "", t.JQ != "", t.Template != "", t.Headers != nil, t.Codec != "", t.Validate != nil, len(t.Redact) > 0, t.Enrich != nil} {
 			if ok {
 				set++
 			}
@@ -898,9 +898,31 @@ func (v *validator) transforms(p string, ts []Transform) {
 		tp := p + "[" + strconv.Itoa(i) + "]"
 		switch {
 		case set == 0 && t.ContentType == "":
-			v.add(tp, "set one of filter, jq, template, headers, codec, validate, redact or content_type")
+			v.add(tp, "set one of filter, jq, template, headers, codec, validate, redact, enrich or content_type")
 		case set > 1:
-			v.add(tp, "set only one of filter, jq, template, headers, codec, validate and redact per transform")
+			v.add(tp, "set only one of filter, jq, template, headers, codec, validate, redact and enrich per transform")
+		}
+		if en := t.Enrich; en != nil {
+			if en.URL == "" {
+				v.add(tp+".enrich.url", "is required")
+			}
+			if en.Into == "" {
+				v.add(tp+".enrich.into", "is required: the key of the JSON body that gets the answer")
+			} else if slices.Contains(strings.Split(en.Into, "."), "") {
+				v.add(tp+".enrich.into", "%q is not a key or a dotted path of keys", en.Into)
+			}
+			if en.Method != "" && en.Method != "GET" && en.Method != "POST" {
+				v.add(tp+".enrich.method", "must be GET or POST")
+			}
+			if en.OnError != "" && en.OnError != "fail" && en.OnError != "skip" {
+				v.add(tp+".enrich.on_error", "must be fail or skip")
+			}
+			if en.Cache != 0 && en.Method == "POST" {
+				v.add(tp+".enrich.cache", "applies to GET only: a POST's answer depends on the body")
+			}
+			if t.ContentType != "" {
+				v.add(tp+".enrich", "content_type does not go with enrich: the body stays JSON")
+			}
 		}
 		if va := t.Validate; va != nil {
 			switch {

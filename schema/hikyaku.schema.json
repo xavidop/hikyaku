@@ -1035,6 +1035,55 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Enrich": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "description": "GET (default), or POST, which sends the message body."
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Request headers (values are templates)."
+        },
+        "into": {
+          "type": "string",
+          "description": "Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer."
+        },
+        "timeout": {
+          "$ref": "#/$defs/Duration",
+          "description": "How long the call may take (default 2s)."
+        },
+        "cache": {
+          "$ref": "#/$defs/Duration",
+          "description": "Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache)."
+        },
+        "on_error": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "skip"
+          ],
+          "description": "When the call fails: fail (default) fails the transform, skip lets the message go on without the answer."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "into"
+      ]
+    },
     "Fault": {
       "properties": {
         "fail": {
@@ -3028,6 +3077,10 @@
         "validate": {
           "$ref": "#/$defs/SchemaCheck",
           "description": "Check the JSON body against a JSON Schema; a body that does not match is a failure."
+        },
+        "enrich": {
+          "$ref": "#/$defs/Enrich",
+          "description": "Call an HTTP endpoint and put its JSON answer into the JSON body."
         }
       },
       "additionalProperties": false,

@@ -673,6 +673,19 @@ type Transform struct {
 	ContentType string       `yaml:"content_type,omitempty" jsonschema_description:"Set the content type (alone, or after jq or template)."`
 	Redact      []string     `yaml:"redact,omitempty" jsonschema_description:"JSONPaths whose values are replaced with [redacted] in the JSON body, such as $.card.number or $..email."`
 	Validate    *SchemaCheck `yaml:"validate,omitempty" jsonschema_description:"Check the JSON body against a JSON Schema; a body that does not match is a failure."`
+	Enrich      *Enrich      `yaml:"enrich,omitempty" jsonschema_description:"Call an HTTP endpoint and put its JSON answer into the JSON body."`
+}
+
+// Enrich is a transform (enrich:) that looks something up over HTTP and
+// adds the answer to the message.
+type Enrich struct {
+	URL     string            `yaml:"url" jsonschema:"required" jsonschema_description:"The endpoint to call, a per-message template such as https://crm.internal/customers/{{ .json.customer_id }}."`
+	Method  string            `yaml:"method,omitempty" jsonschema:"enum=GET,enum=POST" jsonschema_description:"GET (default), or POST, which sends the message body."`
+	Headers map[string]string `yaml:"headers,omitempty" jsonschema_description:"Request headers (values are templates)."`
+	Into    string            `yaml:"into" jsonschema:"required" jsonschema_description:"Where the answer goes in the JSON body: a key, or a dotted path such as meta.customer."`
+	Timeout Duration          `yaml:"timeout,omitempty" jsonschema_description:"How long the call may take (default 2s)."`
+	Cache   Duration          `yaml:"cache,omitempty" jsonschema_description:"Keep each URL's answer this long, in this process, and skip the call meanwhile (GET only; default: no cache)."`
+	OnError string            `yaml:"on_error,omitempty" jsonschema:"enum=fail,enum=skip" jsonschema_description:"When the call fails: fail (default) fails the transform, skip lets the message go on without the answer."`
 }
 
 // SchemaCheck is a transform (validate:) that checks the body against a JSON Schema. It
