@@ -392,8 +392,15 @@ func TestValidateTransforms(t *testing.T) {
 		_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: "+transforms+" }", 1))
 		assert.Contains(t, errText(t, err), want, transforms)
 	}
-	_, err = loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: [{ validate: { schema: { type: object, required: [id] } } }] }", 1))
+	_, err = loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: [{ validate: { schema: { type: object, required: [id] }, on_invalid: { to: [out] } } }] }", 1))
 	require.NoError(t, err)
+	for transforms, want := range map[string]string{
+		"[{ validate: { schema: {}, on_invalid: { to: [nowhere] } } }]": `validate.on_invalid.to[0]: destination "nowhere" is not declared`,
+		"[{ validate: { schema: {}, on_invalid: { to: [] } } }]":        "validate.on_invalid.to: is required",
+	} {
+		_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], transforms: "+transforms+" }", 1))
+		assert.Contains(t, errText(t, err), want, transforms)
+	}
 }
 
 func TestValidateToAndRouterBoth(t *testing.T) {

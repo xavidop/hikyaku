@@ -1749,6 +1749,22 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "OnInvalid": {
+      "properties": {
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Destinations that get the refused message, with the schema.error attribute set."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
     "OpenAI": {
       "properties": {
         "base_url": {
@@ -2209,6 +2225,10 @@
         "schema": {
           "type": "object",
           "description": "The JSON Schema, written inline."
+        },
+        "on_invalid": {
+          "$ref": "#/$defs/OnInvalid",
+          "description": "On a route: where a body that does not match goes, instead of the dead-letter queue."
         },
         "file": {
           "type": "string",

@@ -203,6 +203,35 @@ What happens to a message that does not match depends on where the step runs:
 - **On a destination**, that hop fails as permanent, like any failed transform. The message
   moves on to the next fallback, then to the dead-letter queue with reason `delivery`.
 
+### on_invalid: send bad messages somewhere
+
+```yaml
+transforms:
+  - validate:
+      file: schemas/order.json
+      on_invalid: { to: [bad-orders] }
+```
+
+On a route, `on_invalid.to` names the destinations that get a message the step refused, in
+place of the dead-letter queue: a quarantine topic, an alert webhook, a file. The message goes
+there as it was when the step refused it, with what is wrong in the `schema.error` attribute:
+
+```yaml
+destinations:
+  - name: bad-orders
+    type: https
+    url: https://hooks.example.com/alerts
+    body: '{"text": "Bad order from {{ .source }}: {{ index .attributes "schema.error" }}"}'
+```
+
+- The route's own destinations do not get the message.
+- The message counts as delivered once those destinations have it: an HTTP source answers
+  `200`, not `422`. A destination in `to` that fails is a failed delivery like any other, with
+  its retries, its fallbacks and a `delivery` dead letter.
+- `hikyaku_schema_invalid_total{route}` still counts it, and reports name the router `validate`.
+- `on_invalid` is for a route's transforms. On a destination, give the destination a
+  `fallback`.
+
 Put `validate` first to check what the sender sent, or after a `jq` step to check what you are
 about to deliver.
 

@@ -35,6 +35,9 @@ type SchemaError struct {
 	Violations []string
 	// More counts the failures left out of Violations.
 	More int
+	// To are the destinations of the step's on_invalid: a route delivers
+	// the refused message there, and does not dead-letter it.
+	To []string
 }
 
 func (e *SchemaError) Error() string {
@@ -49,6 +52,7 @@ func (e *SchemaError) Error() string {
 // the message, and never drops it: a body that does not match is an error.
 type ValidateStep struct {
 	schema *jsonschema.Schema
+	to     []string // on_invalid.to
 }
 
 // CompileSchema builds a validate step. Formats (date-time, email, uri...)
@@ -84,7 +88,11 @@ func CompileSchema(spec *config.SchemaCheck) (ValidateStep, error) {
 	if err != nil {
 		return ValidateStep{}, compileError(err)
 	}
-	return ValidateStep{schema: s}, nil
+	step := ValidateStep{schema: s}
+	if spec.OnInvalid != nil {
+		step.to = spec.OnInvalid.To
+	}
+	return step, nil
 }
 
 // compileError shortens the compiler's report of a schema that is not a
@@ -115,16 +123,18 @@ func toJSON(raw []byte) ([]byte, error) {
 // Apply validates the body.
 func (s ValidateStep) Apply(env *envelope.Envelope) (bool, error) {
 	if len(env.Body) == 0 {
-		return false, &SchemaError{Violations: []string{"the body is empty"}}
+		return false, &SchemaError{Violations: []string{"the body is empty"}, To: s.to}
 	}
 	v, err := env.JSON()
 	if err != nil {
-		return false, &SchemaError{Violations: []string{"the body is not JSON: " + err.Error()}}
+		return false, &SchemaError{Violations: []string{"the body is not JSON: " + err.Error()}, To: s.to}
 	}
 	if err := s.schema.Validate(v); err != nil {
 		var ve *jsonschema.ValidationError
 		if errors.As(err, &ve) {
-			return false, schemaError(ve)
+			se := schemaError(ve)
+			se.To = s.to
+			return false, se
 		}
 		return false, err
 	}

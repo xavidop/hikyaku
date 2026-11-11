@@ -731,6 +731,12 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 |---|---|---|
 | `url` | string | Base URL (default http://localhost:11434). |
 
+## `OnInvalid`
+
+| Key | Type | Description |
+|---|---|---|
+| `to` **(required)** | string[] | Destinations that get the refused message, with the schema.error attribute set. |
+
 ## `OpenAI`
 
 | Key | Type | Description |
@@ -789,6 +795,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | Key | Type | Description |
 |---|---|---|
 | `schema` | object | The JSON Schema, written inline. |
+| `on_invalid` | [OnInvalid](#oninvalid) | On a route: where a body that does not match goes, instead of the dead-letter queue. |
 | `file` | string | A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory. |
 
 ## `Sentinel`

@@ -493,6 +493,11 @@ type Cluster struct {
 	Addrs []string `yaml:"addrs" jsonschema:"required" jsonschema_description:"Seed node addresses."`
 }
 
+// OnInvalid is what a route does with a body its validate step refused.
+type OnInvalid struct {
+	To []string `yaml:"to" jsonschema:"required" jsonschema_description:"Destinations that get the refused message, with the schema.error attribute set."`
+}
+
 // DeadLetter is the dead-letter queue.
 type DeadLetter struct {
 	Endpoint `yaml:",inline"`
@@ -622,8 +627,9 @@ type Transform struct {
 // SchemaCheck is a transform (validate:) that checks the body against a JSON Schema. It
 // never changes the message.
 type SchemaCheck struct {
-	Schema map[string]any `yaml:"schema,omitempty" jsonschema_description:"The JSON Schema, written inline."`
-	File   string         `yaml:"file,omitempty" jsonschema_description:"A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory."`
+	Schema    map[string]any `yaml:"schema,omitempty" jsonschema_description:"The JSON Schema, written inline."`
+	OnInvalid *OnInvalid     `yaml:"on_invalid,omitempty" jsonschema_description:"On a route: where a body that does not match goes, instead of the dead-letter queue."`
+	File      string         `yaml:"file,omitempty" jsonschema_description:"A JSON Schema file (JSON or YAML), read when the relay starts or reloads. A relative path is relative to the working directory."`
 }
 
 // HeaderOps edits headers.
