@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.3.0](https://github.com/xavidop/hikyaku/compare/v1.2.0...v1.3.0) (2026-11-11)
+
+
+### Features
+
+* webhook presets, alerts and the enrich transform ([#15](https://github.com/xavidop/hikyaku/issues/15)) ([955c78d](https://github.com/xavidop/hikyaku/commit/955c78d1ced04299ab731aecf4dfa48050c1a3d8))
+
 # [1.2.0](https://github.com/xavidop/hikyaku/compare/v1.1.0...v1.2.0) (2026-11-11)
 
 
