@@ -384,6 +384,7 @@ func merge(files []string, specs []*Spec) (*Spec, Errors) {
 				out.Routes = append(out.Routes, x)
 			}
 		}
+		out.Notify = append(out.Notify, s.Notify...)
 		for _, x := range s.Plugins {
 			if unique("plugin", x.Name, f) {
 				x.Command = commandFrom(f, x.Command)

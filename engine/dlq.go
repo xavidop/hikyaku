@@ -129,6 +129,7 @@ func (e *Engine) deadLetter(ctx context.Context, env *envelope.Envelope, info DL
 		}
 		span.SetAttributes(attribute.String("hikyaku.dlq.hop", h.name))
 		e.log.Warn("dead-lettered", "id", env.ID, "route", info.Route, "destination", info.Destination, "reason", info.Reason, "hop", h.name, "err", info.Error)
+		e.notifier.emit(Alert{Event: config.NotifyDeadLetter, Destination: info.Destination, Route: info.Route, Reason: info.Reason, Error: info.Error, MessageID: env.ID})
 		return nil
 	}
 	if e.m != nil {

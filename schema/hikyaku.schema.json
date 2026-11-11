@@ -1720,6 +1720,38 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Notify": {
+      "properties": {
+        "on": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "dead_letter",
+              "circuit_open",
+              "circuit_closed"
+            ]
+          },
+          "type": "array",
+          "description": "The events that alert (default dead_letter and circuit_open)."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "The destinations that get the alert, a JSON message."
+        },
+        "every": {
+          "$ref": "#/$defs/Duration",
+          "description": "At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
     "OTel": {
       "properties": {
         "endpoint": {
@@ -3134,6 +3166,13 @@
       },
       "type": "array",
       "description": "Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares."
+    },
+    "notify": {
+      "items": {
+        "$ref": "#/$defs/Notify"
+      },
+      "type": "array",
+      "description": "Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes."
     }
   },
   "additionalProperties": false,

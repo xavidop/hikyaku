@@ -24,15 +24,17 @@ const (
 	DefaultBufferSize    = 10000
 	DefaultWorkers       = 256
 	DefaultShutdownGrace = 20 * time.Second
-	DefaultAdminListen   = ":9090"
-	DefaultStoreTimeout  = 50 * time.Millisecond
-	DefaultKeyPrefix     = "hikyaku"
-	DefaultPollInterval  = 30 * time.Second
-	DefaultPollTimeout   = 10 * time.Second
-	DefaultMaxBodyBytes  = 10 << 20
-	DefaultRespondWait   = 30 * time.Second
-	DefaultDedupeTTL     = time.Hour
-	DefaultIdemHeader    = "Idempotency-Key"
+	// DefaultNotifyEvery is notify.every when it is not set.
+	DefaultNotifyEvery  = time.Minute
+	DefaultAdminListen  = ":9090"
+	DefaultStoreTimeout = 50 * time.Millisecond
+	DefaultKeyPrefix    = "hikyaku"
+	DefaultPollInterval = 30 * time.Second
+	DefaultPollTimeout  = 10 * time.Second
+	DefaultMaxBodyBytes = 10 << 20
+	DefaultRespondWait  = 30 * time.Second
+	DefaultDedupeTTL    = time.Hour
+	DefaultIdemHeader   = "Idempotency-Key"
 
 	DefaultAITimeout         = 10 * time.Second
 	DefaultAIMaxBytes        = 8 << 10

@@ -86,6 +86,7 @@ type Engine struct {
 	batchers    map[string]*batcher
 	sem         chan struct{}
 	stopping    chan struct{} // closed when Run shuts down: held messages stop waiting
+	notifier    *notifier     // nil without notify rules
 	inflight    sync.WaitGroup
 	probeClient *http.Client
 
@@ -130,6 +131,7 @@ func New(ctx context.Context, spec *config.Spec, o Options) (*Engine, error) {
 		stopping:    make(chan struct{}),
 		probeClient: &http.Client{Timeout: 5 * time.Second},
 	}
+	e.notifier = newNotifier(e, spec.Notify)
 	if err := e.buildStores(ctx); err != nil {
 		e.closeStores()
 		return nil, err
@@ -337,9 +339,14 @@ func (e *Engine) newEndpoint(ctx context.Context, dest, name string, ep config.E
 		if e.m != nil {
 			e.m.BreakerState.WithLabelValues(name).Set(float64(s))
 		}
-		if s == stateOpen {
+		switch s {
+		case stateOpen:
 			e.log.Warn("circuit breaker open", "endpoint", name)
-		} else {
+			e.notifier.emit(Alert{Event: config.NotifyCircuitOpen, Destination: dest, Endpoint: name})
+		case stateClosed:
+			e.log.Info("circuit breaker closed", "endpoint", name)
+			e.notifier.emit(Alert{Event: config.NotifyCircuitClosed, Destination: dest, Endpoint: name})
+		default:
 			e.log.Info("circuit breaker "+s.String(), "endpoint", name)
 		}
 	})
@@ -414,6 +421,7 @@ func (e *Engine) Run(ctx context.Context) error {
 		e.Close(context.Background())
 		return err
 	}
+	e.notifier.start()
 	hctx, hcancel := context.WithCancel(context.Background())
 	defer hcancel()
 	for _, name := range e.order {
@@ -596,6 +604,7 @@ func (e *Engine) Close(ctx context.Context) {
 	e.closeOnce.Do(func() {
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
+		e.notifier.stop() // while the sinks are still open
 		for _, d := range e.dests {
 			for _, ep := range d.endpoints {
 				if err := ep.sink.Close(cctx); err != nil {

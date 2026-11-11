@@ -32,6 +32,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `buffer` | [Buffer](#buffer) | The queue between sources and delivery workers. |
 | `egress` | [Egress](#egress) | SSRF guard for destinations whose URL host is a per-message template. |
 | `plugins` | [PluginBinary](#pluginbinary)[] | Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares. |
+| `notify` | [Notify](#notify)[] | Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes. |
 
 ## `Source`
 
@@ -713,6 +714,14 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `decision` | string | Default decision model, such as typesafe/jev-1.13.0. Pin a version in production. |
 | `retry` | [ModelRetry](#modelretry) | Tries per model before the next model of the chain. |
 | `fallback` | [ModelFallback](#modelfallback) | Global model fallback chains. |
+
+## `Notify`
+
+| Key | Type | Description |
+|---|---|---|
+| `on` | string[] | The events that alert (default dead_letter and circuit_open). |
+| `to` **(required)** | string[] | The destinations that get the alert, a JSON message. |
+| `every` | [Duration](#duration) | At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m). |
 
 ## `OTel`
 

@@ -21,7 +21,25 @@ type Spec struct {
 	Buffer        Buffer            `yaml:"buffer,omitempty" jsonschema_description:"The queue between sources and delivery workers."`
 	Egress        Egress            `yaml:"egress,omitempty" jsonschema_description:"SSRF guard for destinations whose URL host is a per-message template."`
 	Plugins       []PluginBinary    `yaml:"plugins,omitempty" jsonschema_description:"Out-of-process plugins: binaries hikyaku starts and talks gRPC to. Each one adds the source and destination types it declares."`
+	Notify        []Notify          `yaml:"notify,omitempty" jsonschema_description:"Alerts: a message sent to a destination when a message is dead-lettered or a circuit breaker changes."`
 }
+
+// Notify is one alert rule.
+type Notify struct {
+	On    []string `yaml:"on,omitempty" jsonschema:"enum=dead_letter,enum=circuit_open,enum=circuit_closed" jsonschema_description:"The events that alert (default dead_letter and circuit_open)."`
+	To    []string `yaml:"to" jsonschema:"required" jsonschema_description:"The destinations that get the alert, a JSON message."`
+	Every Duration `yaml:"every,omitempty" jsonschema_description:"At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m)."`
+}
+
+// The events of notify.on.
+const (
+	NotifyDeadLetter    = "dead_letter"
+	NotifyCircuitOpen   = "circuit_open"
+	NotifyCircuitClosed = "circuit_closed"
+)
+
+// NotifyEvents are the events notify.on accepts.
+var NotifyEvents = []string{NotifyDeadLetter, NotifyCircuitOpen, NotifyCircuitClosed}
 
 // PluginBinary is an out-of-process plugin (see the grpcplugin module).
 type PluginBinary struct {

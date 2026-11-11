@@ -155,6 +155,7 @@ func (v *validator) spec() {
 	v.listeners()
 	v.pluginBinaries()
 	v.deadLetter(dests)
+	v.notify(dests)
 	v.routes(sources, dests, stores)
 	v.process()
 	for i := range s.Sources {
@@ -666,6 +667,21 @@ func (v *validator) fallbackCycles() {
 	for _, d := range v.s.Destinations {
 		if color[d.Name] == white {
 			visit(d.Name)
+		}
+	}
+}
+
+func (v *validator) notify(dests map[string]bool) {
+	for i, n := range v.s.Notify {
+		p := fmt.Sprintf("notify[%d]", i)
+		if len(n.To) == 0 {
+			v.add(p+".to", "is required: the destinations that get the alert")
+		}
+		v.destRefs(p+".to", n.To, dests)
+		for j, ev := range n.On {
+			if !slices.Contains(NotifyEvents, ev) {
+				v.add(fmt.Sprintf("%s.on[%d]", p, j), "%q is not an event (use %s)", ev, strings.Join(NotifyEvents, ", "))
+			}
 		}
 	}
 }

@@ -29,6 +29,7 @@ sources: []                # where messages come from
 destinations: []           # where they go
 stores: []                 # shared state: history, decision cache, dedupe, budgets
 dead_letter: {}            # the last resort (stderr by default)
+notify: []                 # alerts on dead letters and open circuits
 routes: []                 # which destinations get the messages of which sources
 server: {}                 # admin API, workers, shutdown
 observability: {}          # logs, traces, metrics
@@ -288,6 +289,8 @@ The DLQ is a destination like any other. It has its own `retry` (3 attempts by d
 own `fallback` (destination names, or `stdout` / `stderr`). Without `dead_letter:`, dead letters
 go to stderr. A file DLQ is what [`hikyaku dlq replay`](/docs/cli/#hikyaku-dlq-replay) reads.
 
+[`notify`](/docs/resilience/#alerts) sends an alert to a destination when a message is dead-lettered.
+
 ## Genkit and models
 
 Only AI routes need these two sections. `genkit:` names the model plugins to start. `models:`
@@ -372,7 +375,7 @@ inside it, in name order. The files are merged into one spec:
 
 - lists (`sources`, `destinations`, `stores`, `routes`, `plugins`) are concatenated, and names
   must stay unique: a duplicate names both files. A plugin's relative `command` resolves against
-  the file that declares it;
+  the file that declares it. `notify` rules are concatenated too (they have no names);
 - `secrets` are unioned;
 - every other section may be set in one file only;
 - every file must agree on `name`: one relay per process.

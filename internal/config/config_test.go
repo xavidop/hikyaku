@@ -461,6 +461,20 @@ func TestValidateWebhookAuth(t *testing.T) {
 	}
 }
 
+func TestValidateNotify(t *testing.T) {
+	s := mustLoad(t, minimal+"notify:\n  - { to: [out] }\n  - { on: [circuit_open, circuit_closed, dead_letter], to: [out], every: 5m }\n")
+	require.Len(t, s.Notify, 2)
+	assert.Equal(t, 5*time.Minute, s.Notify[1].Every.Std())
+	for n, want := range map[string]string{
+		`{ on: [dead_letter] }`:        `notify[0].to: is required`,
+		`{ to: [nowhere] }`:            `notify[0].to[0]: destination "nowhere" is not declared`,
+		`{ on: [breaker], to: [out] }`: `notify[0].on[0]: "breaker" is not an event (use dead_letter, circuit_open, circuit_closed)`,
+	} {
+		_, err := loadYAML(t, minimal+"notify:\n  - "+n+"\n")
+		assert.Contains(t, errText(t, err), want, n)
+	}
+}
+
 func TestValidateToAndRouterBoth(t *testing.T) {
 	_, err := loadYAML(t, strings.Replace(minimal, "to: [out] }", "to: [out], router: { type: static, to: [out, out] } }", 1))
 	assert.Contains(t, errText(t, err), "set to: or router:, not both")

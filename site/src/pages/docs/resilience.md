@@ -300,6 +300,70 @@ retry and fallback path. A `no_route`, `transform` or `schema` dead letter runs 
 its filter, its transforms and its router chain, then delivery. A message that fails again is
 dead-lettered again. `hikyaku_dlq_total` counts dead letters.
 
+## Alerts
+
+`notify` sends a message to a destination when something goes wrong, so you do not have to watch
+the metrics or run `hikyaku dlq list` to find out:
+
+```yaml
+destinations:
+  - name: ops-slack
+    type: https
+    url: "{{secrets.SLACK_WEBHOOK_URL}}"
+    transforms:
+      - jq: '{text: "hikyaku \(.relay): \(.event) on \(.destination // .route), \(.count) time(s). \(.error // "")"}'
+
+notify:
+  - on: [dead_letter, circuit_open]
+    to: [ops-slack]
+    every: 1m
+```
+
+| Key | Meaning |
+|---|---|
+| `on` | The events that alert: `dead_letter` (a message was stored in the dead-letter queue), `circuit_open` (a circuit breaker opened) and `circuit_closed` (it closed again). The default is `dead_letter` and `circuit_open`. |
+| `to` | The destinations that get the alert. Any destination works: a chat webhook, an on-call service, a queue. |
+| `every` | At most one alert in this time for the same event on the same destination (default `1m`). |
+
+The alert is a JSON message. Shape it for the receiver with the destination's
+[transforms](/docs/transforms/), as the `jq` step above does for Slack.
+
+```json
+{
+  "event": "dead_letter",
+  "relay": "orders-relay",
+  "at": "2026-11-11T10:15:00Z",
+  "destination": "crm",
+  "route": "orders",
+  "reason": "delivery",
+  "error": "http 503",
+  "message_id": "01JCD...",
+  "count": 1
+}
+```
+
+A circuit alert has `destination` and `endpoint` (the destination itself, or the group member
+whose circuit changed) and no `route`, `reason`, `error` or `message_id`.
+
+**`every` keeps a burst quiet.** The first event alerts at once. The same event on the same
+destination is then counted, not sent, until `every` has passed. If anything was counted, one
+alert goes out for all of it: `count` says how many, `since` when the first one happened, and the
+other fields describe the last one. While the failure lasts you get one alert per `every`. After a
+quiet `every`, the next event alerts at once again.
+
+Things to know:
+
+- Alerts are sent only by a running relay (`hikyaku run`). One-shot commands such as
+  `hikyaku send` and `hikyaku dlq replay` alert nobody.
+- An alert goes through its destination's retries and fallbacks like any message. One that still
+  fails is logged and counted, and is never dead-lettered, so an alert cannot cause another alert.
+- An alert about a destination is never sent to that same destination.
+- A message that could not be stored in the dead-letter queue at all is not an alert: it is
+  nacked, and `hikyaku_dlq_total{outcome="failed"}` counts it.
+- At shutdown, the events still being counted are sent as one last alert.
+- `hikyaku_notifications_total{event,outcome}` counts alerts `sent`, `failed` and `dropped`
+  (more than 256 alerts were waiting).
+
 ## Visibility
 
 These metrics cover every retry and fallback hop:
