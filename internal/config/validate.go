@@ -446,6 +446,9 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 				v.add(fmt.Sprintf("%s.transforms[%d].validate.on_invalid", p, j), "applies to a route's transforms: on a destination, give the destination a fallback")
 			}
 		}
+		if d.DeliverAfter < 0 {
+			v.add(p+".deliver_after", "must not be negative")
+		}
 		if rl := d.RateLimit; rl != nil {
 			if rl.PerSecond <= 0 {
 				v.add(p+".rate_limit.per_second", "must be above 0")

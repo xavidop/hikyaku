@@ -58,6 +58,7 @@ func Check(spec *config.Spec) config.Errors {
 	for _, d := range spec.Destinations {
 		p := fmt.Sprintf("destination %q", d.Name)
 		chain(p+".transforms", d.Transforms)
+		tmpl(p+".deliver_at", d.DeliverAt)
 		endpoint(p, d.Endpoint)
 		for i, m := range d.Members {
 			endpoint(fmt.Sprintf("%s.members[%d]", p, i), m.Endpoint)

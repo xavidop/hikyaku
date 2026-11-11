@@ -57,6 +57,13 @@ These record where the build departs from the design, and the decisions the desi
 - **`validate` transform:** a JSON Schema check, inline (`schema`) or from a file (`file`, relative to the working directory, like `cert_file`).
   - `transform.SchemaError` marks a refusal. On a route it dead-letters with reason `schema` and tag `schema`: http answers 422 with the error, openai 400. On a destination it is a failed transform (a permanent hop).
   - Formats are asserted. Nothing is fetched over the network for a `$ref`.
+  - `on_invalid.to` (route transforms only) delivers the refused message instead, with the `schema.error` attribute. The decision's router is `validate`, and the outcome is delivered (an http caller gets 200).
+- **`redact` transform:** the JSONPaths of `router.input.redact`, applied to the body. A body that is not JSON is a failure, never a pass.
+- **`sign` (http destinations):** `protocols/http/sign.go`, the sending side of `auth.hmac`. It signs last, over the bytes that go out. `timestamp_header` makes the signature cover `<timestamp>.<body>`, which `auth.hmac` does not verify.
+- **`rate_limit` (destinations):** one `x/time/rate` bucket per destination, in this process only. `tryEndpoint` takes a token before every attempt and waits holding the worker. A turn past the deadline fails at once with the `deadline` outcome.
+- **`deliver_after` / `deliver_at` (destinations):** `engine/delay.go`. The key is not `delay`, which is the SQS queue delay on `Endpoint`.
+  - `deliverOne` holds a route's message until it is due (`ReceivedAt + deliver_after`, or the template's RFC 3339 time), giving its worker slot back like a batch member. `deliver`, `DeliverTo` and fallback hops never hold.
+  - `Run` closes `e.stopping` on a shutdown (not when finite sources run out). A held message then fails with `errHeld`: `handle` nacks it without a dead letter, so it stays in the disk buffer.
 - **Engine hooks:**
   - The history recorder starts in `engine.New`, so injected messages (send, route, dlq replay) record too.
   - Sinks that serve something of their own (sse) implement `plugin.Starter`. Only `engine.Run` starts them, so one-shot commands never take a running relay's port.

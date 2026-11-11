@@ -985,6 +985,14 @@
           "$ref": "#/$defs/Hedge",
           "description": "group: race another member when the first is slow (idempotent destinations only)."
         },
+        "deliver_after": {
+          "$ref": "#/$defs/Duration",
+          "description": "Hold each message of a route this long before delivering it here, counted from when it was received."
+        },
+        "deliver_at": {
+          "type": "string",
+          "description": "Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once."
+        },
         "rate_limit": {
           "$ref": "#/$defs/RateLimit",
           "description": "Send at most this many requests per second; the others wait their turn."

@@ -31,6 +31,8 @@ type destination struct {
 	fallback   []string
 	budget     *retryBudget
 	limiter    *rate.Limiter // rate_limit; nil without one
+	delay      time.Duration
+	deliverAt  *transform.Template
 }
 
 // Hop is one destination tried for a message: the primary or a fallback.

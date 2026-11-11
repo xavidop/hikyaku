@@ -68,6 +68,9 @@ func Lint(s *Spec) []Warning {
 		if d.IsRequired() && len(d.Fallback) == 0 && d.Type != "group" && d.Type != "file" && d.Type != "stdout" && d.Type != "stderr" {
 			warn(p+".fallback", "required and without a fallback: when it fails, its messages go to the DLQ")
 		}
+		if (d.DeliverAfter > 0 || d.DeliverAt != "") && s.Buffer.Type != "disk" {
+			warn(p+".deliver_after", "held messages live in memory with buffer.type: memory: a restart or a reload nacks them, and a source that cannot send again loses them; use buffer.type: disk")
+		}
 		if d.Type == "group" && d.Strategy != "failover" && d.Strategy != "" && d.HealthCheck == nil {
 			warn(p+".health_check", "a %s group without health checks keeps sending to dead members until their breakers open", d.Strategy)
 		}

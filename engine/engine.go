@@ -85,6 +85,7 @@ type Engine struct {
 	dedupers    map[string]*deduper // source name → its dedupe (the engine's)
 	batchers    map[string]*batcher
 	sem         chan struct{}
+	stopping    chan struct{} // closed when Run shuts down: held messages stop waiting
 	inflight    sync.WaitGroup
 	probeClient *http.Client
 
@@ -126,6 +127,7 @@ func New(ctx context.Context, spec *config.Spec, o Options) (*Engine, error) {
 		buffer:      make(chan *envelope.Envelope, intakeSize(spec.Buffer)),
 		batchers:    map[string]*batcher{},
 		sem:         make(chan struct{}, max(spec.Server.Workers, 1)),
+		stopping:    make(chan struct{}),
 		probeClient: &http.Client{Timeout: 5 * time.Second},
 	}
 	if err := e.buildStores(ctx); err != nil {
@@ -259,6 +261,14 @@ func (e *Engine) buildDestinations(ctx context.Context) error {
 			e.batchers[ds.Name] = newBatcher(e, ds.Name, ds.Batch)
 		}
 		d.limiter = newLimiter(ds.RateLimit)
+		d.delay = ds.DeliverAfter.Std()
+		if ds.DeliverAt != "" {
+			t, err := transform.CompileTemplate(fmt.Sprintf("destination %q.deliver_at", ds.Name), ds.DeliverAt)
+			if err != nil {
+				return err
+			}
+			d.deliverAt = t
+		}
 		chain, err := transform.Compile(fmt.Sprintf("destination %q.transforms", ds.Name), ds.Transforms)
 		if err != nil {
 			return err
@@ -442,6 +452,12 @@ func (e *Engine) Run(ctx context.Context) error {
 		runErr = e.runDisk(ctx, pctx, disk, srcErr, sourcesDone, stopSources)
 	} else {
 		runErr = e.runMemory(ctx, pctx, srcErr, sourcesDone, stopSources)
+	}
+	if ctx.Err() != nil {
+		// A shutdown: the messages a delay holds are given up now (delay.go),
+		// not after the grace. A run whose sources ran out keeps waiting
+		// for them, up to the grace.
+		close(e.stopping)
 	}
 	done := make(chan struct{})
 	go func() { e.inflight.Wait(); close(done) }()
