@@ -182,6 +182,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `members` | [Member](#member)[] | group: the endpoints. |
 | `health_check` | [HealthCheck](#healthcheck) | group: active health checks; unhealthy members are skipped until they recover. |
 | `hedge` | [Hedge](#hedge) | group: race another member when the first is slow (idempotent destinations only). |
+| `rate_limit` | [RateLimit](#ratelimit) | Send at most this many requests per second; the others wait their turn. |
 | `batch` | [Batch](#batch) | Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch. |
 
 ## `Member`
@@ -761,6 +762,13 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `args` | string[] | Arguments passed to the binary. |
 | `env` | map of string | Environment variables set for the plugin (values may use {{secrets.X}}). |
 | `sha256` | string | Hex SHA-256 of the binary. When set, hikyaku refuses to start a binary that does not match. |
+
+## `RateLimit`
+
+| Key | Type | Description |
+|---|---|---|
+| `per_second` **(required)** | number | Requests per second, on average (0.5 is one every two seconds). |
+| `burst` | integer | Requests that may go out at once after a quiet time (default per_second, rounded up). |
 
 ## `Readiness`
 

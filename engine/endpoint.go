@@ -107,6 +107,10 @@ func (e *Engine) tryEndpoint(ctx context.Context, d *destination, ep *endpoint, 
 		if n == 1 {
 			d.budget.request(ctx)
 		}
+		if err := e.throttle(ctx, d); err != nil {
+			res.outcome, res.err = outcomeDeadline, err
+			return res
+		}
 		res.attempts = n
 		env.SetAttribute("delivery.attempt", n)
 		r, dur, err := e.attemptOnce(ctx, d, ep, env, n)

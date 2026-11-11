@@ -428,6 +428,8 @@ type Destination struct {
 	HealthCheck *HealthCheck `yaml:"health_check,omitempty" jsonschema_description:"group: active health checks; unhealthy members are skipped until they recover."`
 	Hedge       *Hedge       `yaml:"hedge,omitempty" jsonschema_description:"group: race another member when the first is slow (idempotent destinations only)."`
 
+	RateLimit *RateLimit `yaml:"rate_limit,omitempty" jsonschema_description:"Send at most this many requests per second; the others wait their turn."`
+
 	Batch *Batch `yaml:"batch,omitempty" jsonschema_description:"Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."`
 }
 
@@ -492,6 +494,14 @@ type Sentinel struct {
 // Cluster locates a Redis Cluster.
 type Cluster struct {
 	Addrs []string `yaml:"addrs" jsonschema:"required" jsonschema_description:"Seed node addresses."`
+}
+
+// RateLimit caps the requests a destination sends: a token bucket of burst
+// tokens, refilled per_second times a second. Every attempt takes one
+// token, retries included.
+type RateLimit struct {
+	PerSecond float64 `yaml:"per_second" jsonschema:"required" jsonschema_description:"Requests per second, on average (0.5 is one every two seconds)."`
+	Burst     int     `yaml:"burst,omitempty" jsonschema_description:"Requests that may go out at once after a quiet time (default per_second, rounded up)."`
 }
 
 // Sign adds an HMAC signature of the body to every request of an http

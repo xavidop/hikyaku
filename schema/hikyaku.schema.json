@@ -985,6 +985,10 @@
           "$ref": "#/$defs/Hedge",
           "description": "group: race another member when the first is slow (idempotent destinations only)."
         },
+        "rate_limit": {
+          "$ref": "#/$defs/RateLimit",
+          "description": "Send at most this many requests per second; the others wait their turn."
+        },
         "batch": {
           "$ref": "#/$defs/Batch",
           "description": "Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."
@@ -1872,6 +1876,23 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "RateLimit": {
+      "properties": {
+        "per_second": {
+          "type": "number",
+          "description": "Requests per second, on average (0.5 is one every two seconds)."
+        },
+        "burst": {
+          "type": "integer",
+          "description": "Requests that may go out at once after a quiet time (default per_second, rounded up)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "per_second"
+      ]
     },
     "Readiness": {
       "properties": {
