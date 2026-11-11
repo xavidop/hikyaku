@@ -227,26 +227,30 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 		}
 	}
 	keep, err := r.transforms.Apply(renv)
-	if err != nil {
+	if err != nil && isSchemaError(err) && e.m != nil {
+		e.m.SchemaInvalid.WithLabelValues(r.name).Inc()
+	}
+	var dec plugin.Decision
+	switch quarantine := invalidTo(err); {
+	case len(quarantine) > 0:
+		// on_invalid: the refused message is delivered, not dead-lettered.
+		dec = invalidDecision(renv, quarantine, err)
+	case err != nil:
 		reason, tag := ReasonTransform, plugin.TagTransform
 		rr.Error = transformError(err)
 		if isSchemaError(err) {
 			reason, tag = ReasonSchema, plugin.TagSchema
-			if e.m != nil {
-				e.m.SchemaInvalid.WithLabelValues(r.name).Inc()
-			}
 		}
 		return rr, []dlqItem{{env: env, info: DLQInfo{Route: r.name, Reason: reason, Error: rr.Error}, err: plugin.Wrap(plugin.Permanent, []string{tag}, err)}}
-	}
-	if !keep {
+	case !keep:
 		rr.Filtered = true
 		return rr, nil
-	}
-	dec, err := r.router.Route(ctx, renv)
-	if err != nil {
-		rr.Error = err.Error()
-		e.log.Error("routing failed", "route", r.name, "id", env.ID, "err", err)
-		return rr, []dlqItem{{env: env, info: DLQInfo{Route: r.name, Reason: ReasonNoRoute, Error: rr.Error}, err: plugin.Wrap(plugin.Permanent, []string{plugin.TagNoRoute}, err)}}
+	default:
+		if dec, err = r.router.Route(ctx, renv); err != nil {
+			rr.Error = err.Error()
+			e.log.Error("routing failed", "route", r.name, "id", env.ID, "err", err)
+			return rr, []dlqItem{{env: env, info: DLQInfo{Route: r.name, Reason: ReasonNoRoute, Error: rr.Error}, err: plugin.Wrap(plugin.Permanent, []string{plugin.TagNoRoute}, err)}}
+		}
 	}
 	for k, v := range dec.Attributes {
 		renv.SetAttribute(k, v)
@@ -280,6 +284,30 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 func isSchemaError(err error) bool {
 	var se *transform.SchemaError
 	return errors.As(err, &se)
+}
+
+// SchemaErrorAttribute is the attribute a message refused by a validate
+// step carries to its on_invalid destinations: what is wrong with it.
+const SchemaErrorAttribute = "schema.error"
+
+// invalidRouter is the router name of an on_invalid decision, in reports
+// and in hikyaku_route_decisions_total.
+const invalidRouter = "validate"
+
+// invalidTo returns the on_invalid destinations of a schema refusal.
+func invalidTo(err error) []string {
+	var se *transform.SchemaError
+	if errors.As(err, &se) {
+		return se.To
+	}
+	return nil
+}
+
+// invalidDecision sends a refused message to its on_invalid destinations,
+// with what is wrong in SchemaErrorAttribute.
+func invalidDecision(env *envelope.Envelope, to []string, err error) plugin.Decision {
+	env.SetAttribute(SchemaErrorAttribute, err.Error())
+	return plugin.Decision{Destinations: slices.Clone(to), Router: invalidRouter, Reason: err.Error()}
 }
 
 // transformError is the report text of a failed route transform. A schema

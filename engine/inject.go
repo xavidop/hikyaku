@@ -73,7 +73,12 @@ func (e *Engine) dryRun(ctx context.Context, routes []*route, env *envelope.Enve
 			}
 		}
 		keep, err := r.transforms.Apply(renv)
-		switch {
+		switch quarantine := invalidTo(err); {
+		case len(quarantine) > 0:
+			rr.Decision = viewOf(invalidDecision(renv, quarantine, err))
+			for _, d := range quarantine {
+				rr.Plans = append(rr.Plans, e.planFor(d))
+			}
 		case err != nil:
 			rr.Error = transformError(err)
 		case !keep:

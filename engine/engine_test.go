@@ -611,6 +611,71 @@ routes:
 	assert.Contains(t, info.Error, "schema: missing property 'sku'")
 }
 
+// on_invalid makes a refused body a routing choice: it goes to the named
+// destinations with what is wrong, and nothing is dead-lettered.
+func TestSchemaOnInvalidDelivers(t *testing.T) {
+	const s = `
+version: 1
+name: relay
+sources: [{ name: in, type: stdin }]
+destinations:
+  - { name: out, type: fault }
+  - { name: quarantine, type: fault, retry: { attempts: 1 } }
+dead_letter: { type: fault }
+routes:
+  - name: orders
+    from: [in]
+    transforms:
+      - headers: { set: { X-Seen: "yes" } }
+      - validate:
+          schema: { type: object, required: [id] }
+          on_invalid: { to: [quarantine] }
+    to: [out]
+`
+	out, quarantine, dlq := &scripted{name: "out"}, &scripted{name: "quarantine"}, &scripted{name: "dead_letter"}
+	setSinks(t, out, quarantine, dlq)
+	reg := metrics.New()
+	e := build(t, s, Options{Metrics: reg})
+
+	var acked envelope.Outcome
+	bad := msg("in", `{"sku":"x"}`)
+	bad.OnAck(func(_ context.Context, o envelope.Outcome) { acked = o })
+	rep := e.Inject(context.Background(), bad)
+	assert.Equal(t, "delivered", rep.Status)
+	assert.Equal(t, envelope.Delivered, acked.Status)
+	assert.Equal(t, 0, out.count())
+	assert.Equal(t, 0, dlq.count())
+	require.Equal(t, 1, quarantine.count())
+	got := quarantine.call(0)
+	assert.JSONEq(t, `{"sku":"x"}`, got.BodyText())
+	assert.Equal(t, "yes", got.Header("X-Seen"), "the transforms before validate ran")
+	why, _ := got.Attribute(SchemaErrorAttribute)
+	assert.Equal(t, "schema: missing property 'id'", why)
+	require.NotNil(t, rep.Routes[0].Decision)
+	assert.Equal(t, "validate", rep.Routes[0].Decision.Router)
+	assert.Equal(t, []string{"quarantine"}, rep.Routes[0].Decision.Destinations)
+	assert.InDelta(t, 1, testutil.ToFloat64(reg.SchemaInvalid.WithLabelValues("orders")), 0)
+
+	plans, err := e.DryRun(context.Background(), "in", msg("in", `[]`))
+	require.NoError(t, err)
+	assert.Empty(t, plans[0].Error)
+	require.Len(t, plans[0].Plans, 1)
+	assert.Equal(t, "quarantine", plans[0].Plans[0].Destination)
+
+	// A quarantine that fails is a failed delivery like any other.
+	quarantine.final = err503
+	rep = e.Inject(context.Background(), msg("in", `{}`))
+	assert.Equal(t, "dead_lettered", rep.Status)
+	require.Equal(t, 1, dlq.count())
+	info, _ := InfoOf(dlq.call(0))
+	assert.Equal(t, ReasonDelivery, info.Reason)
+	assert.Equal(t, "quarantine", info.Destination)
+
+	rep = e.Inject(context.Background(), msg("in", `{"id":1}`))
+	assert.Equal(t, "delivered", rep.Status)
+	assert.Equal(t, 1, out.count())
+}
+
 func TestCheckSchema(t *testing.T) {
 	l := spec(t, `
 version: 1

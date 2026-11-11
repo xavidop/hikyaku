@@ -441,6 +441,11 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 			}
 		}
 		v.transforms(p+".transforms", d.Transforms)
+		for j, t := range d.Transforms {
+			if t.Validate != nil && t.Validate.OnInvalid != nil {
+				v.add(fmt.Sprintf("%s.transforms[%d].validate.on_invalid", p, j), "applies to a route's transforms: on a destination, give the destination a fallback")
+			}
+		}
 		v.batch(p, d.Batch)
 		if d.Batch != nil && (d.Type == "model" || slices.ContainsFunc(d.Members, func(m Member) bool { return m.Type == "model" })) {
 			v.add(p+".batch", "does not apply to a model destination: a model answers one chat request per message")
@@ -659,6 +664,16 @@ func (v *validator) routes(sources, dests, stores map[string]bool) {
 			}
 		}
 		v.transforms(p+".transforms", r.Transforms)
+		for j, t := range r.Transforms {
+			if t.Validate == nil || t.Validate.OnInvalid == nil {
+				continue
+			}
+			tp := fmt.Sprintf("%s.transforms[%d].validate.on_invalid.to", p, j)
+			if len(t.Validate.OnInvalid.To) == 0 {
+				v.add(tp, "is required: the destinations that get a refused message")
+			}
+			v.destRefs(tp, t.Validate.OnInvalid.To, dests)
+		}
 		switch {
 		case r.Router == nil:
 			v.add(p, "needs to: (static) or router:")
