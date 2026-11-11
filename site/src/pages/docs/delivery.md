@@ -122,3 +122,56 @@ first of these happens: it holds `max_messages` (default 100), it holds `max_byt
 
 Ordering and batching work against each other: an ordered key waits for its batch on every
 message. `hikyaku lint` warns when you combine them.
+
+## Delayed delivery
+
+```yaml
+buffer: { type: disk, path: /var/lib/hikyaku/buffer.db }
+
+destinations:
+  - name: reminder
+    type: https
+    url: https://mailer.internal/send
+    deliver_after: 1h
+
+  - name: scheduled
+    type: https
+    url: https://mailer.internal/send
+    deliver_at: "{{ .json.send_at }}"
+```
+
+A destination can hold a route's messages and deliver them later. That covers "send the reminder
+in an hour" and "send this on Monday at nine" without a scheduler next to the relay.
+
+- **`deliver_after`** holds every message for that long, counted from when the relay received
+  it.
+- **`deliver_at`** is a per-message template of the time to deliver at, in RFC 3339, such as
+  `2026-12-24T09:00:00Z`. A time in the past delivers at once. A message it renders empty for
+  follows `deliver_after`, or goes at once when there is none. A value that is not a time is the
+  message's fault: a permanent failure, so the message goes to the dead-letter queue.
+
+When a message is due, it goes through the destination's normal path: its batch, its retries,
+its rate limit and its fallbacks. A held message does not hold a worker, so held messages do not
+slow the others. `hikyaku_delayed_messages{destination}` is how many a destination holds now.
+
+**Use the disk buffer.** A held message is not acked until it is delivered:
+
+- With `buffer.type: disk`, a held message stays on disk. At a shutdown it is not dead-lettered:
+  it stays in the buffer, and the next start delivers it when it is due. The wait does not start
+  over, because both keys give an absolute time. Held messages count against `buffer.size`, so
+  size the buffer for what you hold.
+- With `buffer.type: memory`, held messages live in memory. A restart or a reload nacks them:
+  a broker source delivers them again, and an HTTP caller that already got its answer does not.
+  `hikyaku lint` warns about a delayed destination without the disk buffer.
+
+What to know:
+
+- An HTTP source with `ack: delivered` waits for the delivery, so its caller gets `202` with
+  status `pending` after `respond.timeout`. Use `ack: accepted` on sources that feed a delayed
+  destination.
+- Only messages a route sends are held. `hikyaku send`, `hikyaku dlq replay --to` and
+  `hikyaku chaos` deliver at once. A fallback hop is not held either: only the destination the
+  route named.
+- With [ordering](#ordering), a held message holds its key: the messages behind it wait too.
+- For a short delay on SQS, the queue's own `delay` (up to 15 minutes) does the same on the
+  broker's side.

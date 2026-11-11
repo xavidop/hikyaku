@@ -428,7 +428,9 @@ type Destination struct {
 	HealthCheck *HealthCheck `yaml:"health_check,omitempty" jsonschema_description:"group: active health checks; unhealthy members are skipped until they recover."`
 	Hedge       *Hedge       `yaml:"hedge,omitempty" jsonschema_description:"group: race another member when the first is slow (idempotent destinations only)."`
 
-	RateLimit *RateLimit `yaml:"rate_limit,omitempty" jsonschema_description:"Send at most this many requests per second; the others wait their turn."`
+	DeliverAfter Duration   `yaml:"deliver_after,omitempty" jsonschema_description:"Hold each message of a route this long before delivering it here, counted from when it was received."`
+	DeliverAt    string     `yaml:"deliver_at,omitempty" jsonschema_description:"Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once."`
+	RateLimit    *RateLimit `yaml:"rate_limit,omitempty" jsonschema_description:"Send at most this many requests per second; the others wait their turn."`
 
 	Batch *Batch `yaml:"batch,omitempty" jsonschema_description:"Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."`
 }

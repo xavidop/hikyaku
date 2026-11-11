@@ -147,6 +147,7 @@ func (e *Engine) handle(ctx context.Context, env *envelope.Envelope, only *strin
 	var failed []error
 	var dlqErr error // the failure behind the first dead letter
 	allFiltered, anyDLQ, dlqFailed := true, false, false
+	var held error // a delay held the message when the relay shut down
 	for _, r := range routes {
 		rr, dl := e.runRoute(ctx, r, env)
 		if !rr.Filtered {
@@ -160,6 +161,10 @@ func (e *Engine) handle(ctx context.Context, env *envelope.Envelope, only *strin
 		// Every failure of a required destination, and every routing
 		// failure, goes to the DLQ: nothing is dropped silently.
 		for _, f := range dl {
+			if f.held {
+				held = f.err
+				continue
+			}
 			anyDLQ = true
 			if dlqErr == nil {
 				dlqErr = f.err
@@ -185,6 +190,8 @@ func (e *Engine) handle(ctx context.Context, env *envelope.Envelope, only *strin
 	case dlqFailed:
 		out.Status, out.Err = envelope.Failed, failed[0]
 		span.SetStatus(codes.Error, failed[0].Error())
+	case held != nil:
+		out.Status, out.Err = envelope.Failed, held
 	case anyDLQ:
 		// The error tells a source why (a model's 400 or 429, no route).
 		out.Status, out.Err = envelope.DeadLettered, dlqErr
@@ -211,6 +218,9 @@ type dlqItem struct {
 	env  *envelope.Envelope
 	info DLQInfo
 	err  error
+	// held: not a dead letter. The relay shut down while a delay held the
+	// message, so it is nacked (and stays in the disk buffer).
+	held bool
 }
 
 // runRoute filters, transforms, routes and delivers a message on one route.
@@ -271,6 +281,10 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 				e.m.Dropped.WithLabelValues(d.Destination).Inc()
 			}
 			e.log.Warn("best-effort destination failed; message dropped for it", "destination", d.Destination, "id", env.ID, "err", d.Error)
+			continue
+		}
+		if errors.Is(d.Err, errHeld) {
+			dl = append(dl, dlqItem{held: true, err: d.Err})
 			continue
 		}
 		dl = append(dl, dlqItem{env: renv, info: DLQInfo{Route: r.name, Destination: d.Destination, Reason: ReasonDelivery, Attempts: d.Attempts, Error: d.Error, Hops: d.Hops}, err: d.Err})
@@ -341,6 +355,11 @@ func (e *Engine) deliverAll(ctx context.Context, names []string, env *envelope.E
 // deliverOne delivers to one destination of a route: through its batch
 // when it batches, else at once.
 func (e *Engine) deliverOne(ctx context.Context, name string, env *envelope.Envelope) DeliveryReport {
+	if d := e.dests[name]; d != nil && d.delayed() {
+		if rep, ok := e.hold(ctx, d, env); !ok {
+			return rep
+		}
+	}
 	if b := e.batchers[name]; b != nil {
 		return b.submit(ctx, env)
 	}

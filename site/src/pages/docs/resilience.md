@@ -205,7 +205,7 @@ may be below 1: `0.5` is one request every two seconds.
 - **A group shares one limit** across its members.
 - **Attempts wait, they are not dropped.** A waiting attempt holds its worker. When a
   destination is slower than its traffic for long, the buffer fills and the sources see
-  [backpressure](/docs/delivery/), as they do with a slow endpoint.
+  [backpressure](#source-side-resilience), as they do with a slow endpoint.
 - **The deadline still rules.** When the next free slot is past the destination's `deadline`,
   the attempt does not wait: the message goes to the fallback at once, with the hop outcome
   `deadline`.

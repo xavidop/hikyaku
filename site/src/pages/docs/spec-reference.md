@@ -182,6 +182,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `members` | [Member](#member)[] | group: the endpoints. |
 | `health_check` | [HealthCheck](#healthcheck) | group: active health checks; unhealthy members are skipped until they recover. |
 | `hedge` | [Hedge](#hedge) | group: race another member when the first is slow (idempotent destinations only). |
+| `deliver_after` | [Duration](#duration) | Hold each message of a route this long before delivering it here, counted from when it was received. |
+| `deliver_at` | string | Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once. |
 | `rate_limit` | [RateLimit](#ratelimit) | Send at most this many requests per second; the others wait their turn. |
 | `batch` | [Batch](#batch) | Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch. |
 
