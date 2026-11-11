@@ -360,6 +360,10 @@
           "$ref": "#/$defs/TLS",
           "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
         },
+        "sign": {
+          "$ref": "#/$defs/Sign",
+          "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
+        },
         "path": {
           "type": "string",
           "description": "file: the file appended to; sse: the stream path (default /)."
@@ -668,6 +672,10 @@
         "tls": {
           "$ref": "#/$defs/TLS",
           "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
+        },
+        "sign": {
+          "$ref": "#/$defs/Sign",
+          "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
         "path": {
           "type": "string",
@@ -1377,6 +1385,10 @@
         "tls": {
           "$ref": "#/$defs/TLS",
           "description": "Client TLS, DTLS for udp (mTLS with cert_file and key_file)."
+        },
+        "sign": {
+          "$ref": "#/$defs/Sign",
+          "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
         "path": {
           "type": "string",
@@ -2284,6 +2296,47 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Sign": {
+      "properties": {
+        "secret": {
+          "type": "string",
+          "description": "Shared secret, usually {{secrets.NAME}}."
+        },
+        "header": {
+          "type": "string",
+          "description": "Header that carries the signature (default X-Signature-256)."
+        },
+        "algo": {
+          "type": "string",
+          "enum": [
+            "sha256",
+            "sha512"
+          ],
+          "description": "Hash (default sha256)."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Text put before the digest, such as sha256=."
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "hex",
+            "base64"
+          ],
+          "description": "Digest encoding (default hex)."
+        },
+        "timestamp_header": {
+          "type": "string",
+          "description": "When set, this header carries the send time in Unix seconds, and the signature covers \u003ctimestamp\u003e.\u003cbody\u003e, so a receiver can refuse an old request."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "secret"
+      ]
     },
     "Size": {
       "oneOf": [

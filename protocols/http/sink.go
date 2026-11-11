@@ -45,7 +45,8 @@ type Sink struct {
 	headers map[string]*transform.Template
 	body    *transform.Template
 	client  *http.Client
-	guard   *guard // set for templated URLs
+	guard   *guard  // set for templated URLs
+	signer  *signer // set with sign:
 }
 
 func newSink(s plugin.Spec) (*Sink, error) {
@@ -80,6 +81,11 @@ func newSink(s plugin.Spec) (*Sink, error) {
 	}
 	if ep.Body != "" {
 		if sk.body, err = transform.CompileTemplate("body", ep.Body); err != nil {
+			return nil, fmt.Errorf("destination %s: %w", s.Name, err)
+		}
+	}
+	if ep.Sign != nil {
+		if sk.signer, err = newSigner(ep.Sign); err != nil {
 			return nil, fmt.Errorf("destination %s: %w", s.Name, err)
 		}
 	}
@@ -181,6 +187,11 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 	}
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", "hikyaku")
+	}
+	if s.signer != nil {
+		// Last, over the bytes that go out: a signature the message came in
+		// with (forwarded like any header) is replaced by ours.
+		s.signer.sign(req, body)
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {

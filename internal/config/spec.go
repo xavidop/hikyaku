@@ -336,6 +336,7 @@ type Endpoint struct {
 	Headers map[string]string `yaml:"headers,omitempty" jsonschema_description:"Headers set on every request; values may be per-message templates."`
 	Body    string            `yaml:"body,omitempty" jsonschema_description:"Per-message template of the outgoing body (default: the message body)."`
 	TLS     *TLS              `yaml:"tls,omitempty" jsonschema_description:"Client TLS, DTLS for udp (mTLS with cert_file and key_file)."`
+	Sign    *Sign             `yaml:"sign,omitempty" jsonschema_description:"http: sign every request with an HMAC of its body, so the receiver can check who sent it."`
 	Path    string            `yaml:"path,omitempty" jsonschema_description:"file: the file appended to; sse: the stream path (default /)."`
 	Listen  string            `yaml:"listen,omitempty" jsonschema_description:"sse: address the event stream is served on."`
 	Format  string            `yaml:"format,omitempty" jsonschema:"enum=envelope,enum=body" jsonschema_description:"file/stdout/stderr: write each message as an envelope line (default) or its body."`
@@ -491,6 +492,17 @@ type Sentinel struct {
 // Cluster locates a Redis Cluster.
 type Cluster struct {
 	Addrs []string `yaml:"addrs" jsonschema:"required" jsonschema_description:"Seed node addresses."`
+}
+
+// Sign adds an HMAC signature of the body to every request of an http
+// destination. It is the sending side of a source's auth.hmac.
+type Sign struct {
+	Secret          string `yaml:"secret" jsonschema:"required" jsonschema_description:"Shared secret, usually {{secrets.NAME}}."`
+	Header          string `yaml:"header,omitempty" jsonschema_description:"Header that carries the signature (default X-Signature-256)."`
+	Algo            string `yaml:"algo,omitempty" jsonschema:"enum=sha256,enum=sha512" jsonschema_description:"Hash (default sha256)."`
+	Prefix          string `yaml:"prefix,omitempty" jsonschema_description:"Text put before the digest, such as sha256=."`
+	Encoding        string `yaml:"encoding,omitempty" jsonschema:"enum=hex,enum=base64" jsonschema_description:"Digest encoding (default hex)."`
+	TimestampHeader string `yaml:"timestamp_header,omitempty" jsonschema_description:"When set, this header carries the send time in Unix seconds, and the signature covers <timestamp>.<body>, so a receiver can refuse an old request."`
 }
 
 // OnInvalid is what a route does with a body its validate step refused.

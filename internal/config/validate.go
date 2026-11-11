@@ -519,6 +519,20 @@ func (v *validator) endpoint(p string, e Endpoint) {
 	if len(e.Options) > 0 {
 		v.add(p+".options", "applies to plugin types: %s destinations take their settings as keys of their own", e.Type)
 	}
+	if sg := e.Sign; sg != nil {
+		if e.Type != "http" && e.Type != "https" {
+			v.add(p+".sign", "applies to http and https destinations")
+		}
+		if sg.Secret == "" {
+			v.add(p+".sign.secret", "is required")
+		}
+		if !slices.Contains([]string{"", "sha256", "sha512"}, sg.Algo) {
+			v.add(p+".sign.algo", "must be sha256 or sha512")
+		}
+		if !slices.Contains([]string{"", "hex", "base64"}, sg.Encoding) {
+			v.add(p+".sign.encoding", "must be hex or base64")
+		}
+	}
 	switch e.Type {
 	case "http", "https":
 		if e.URL == "" {

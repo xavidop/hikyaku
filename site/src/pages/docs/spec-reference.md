@@ -118,6 +118,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `headers` | map of string | Headers set on every request; values may be per-message templates. |
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
+| `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -195,6 +196,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `headers` | map of string | Headers set on every request; values may be per-message templates. |
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
+| `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -450,6 +452,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `headers` | map of string | Headers set on every request; values may be per-message templates. |
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
+| `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -814,6 +817,17 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `shutdown_grace` | [Duration](#duration) | Time in-flight messages get to finish on shutdown (default 20s). |
 | `workers` | integer | Messages processed at once (default 256). |
 | `readiness` | [Readiness](#readiness) | What /readyz checks. |
+
+## `Sign`
+
+| Key | Type | Description |
+|---|---|---|
+| `secret` **(required)** | string | Shared secret, usually {{secrets.NAME}}. |
+| `header` | string | Header that carries the signature (default X-Signature-256). |
+| `algo` | string | Hash (default sha256). One of `sha256`, `sha512`. |
+| `prefix` | string | Text put before the digest, such as sha256=. |
+| `encoding` | string | Digest encoding (default hex). One of `hex`, `base64`. |
+| `timestamp_header` | string | When set, this header carries the send time in Unix seconds, and the signature covers <timestamp>.<body>, so a receiver can refuse an old request. |
 
 ## `SystemOne`
 
