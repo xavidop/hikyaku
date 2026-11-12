@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.4.0](https://github.com/xavidop/hikyaku/compare/v1.3.0...v1.4.0) (2026-11-12)
+
+
+### Features
+
+* OAuth2, shadow traffic, a schedule source, email and gzip ([#16](https://github.com/xavidop/hikyaku/issues/16)) ([272f22f](https://github.com/xavidop/hikyaku/commit/272f22f7e2e8d6e5ad71d7752857d4e18d8587e2))
+
 # [1.3.0](https://github.com/xavidop/hikyaku/compare/v1.2.0...v1.3.0) (2026-11-11)
 
 
