@@ -82,7 +82,7 @@ jobs:
         with:
           fetch-depth: 0 # ct lint compares the chart with the target branch
           persist-credentials: false
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.3.1
       - name: helm lint
@@ -134,7 +134,7 @@ jobs:
       # build context the Dockerfile expects, then docker build.
       - name: Build ghcr.io/xavidop/hikyaku:ci
         run: bash scripts/docker-build.sh ghcr.io/xavidop/hikyaku:ci
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.3.1
       - uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
@@ -177,7 +177,7 @@ jobs:
             echo "::error::there is no GitHub Release $TAG yet. GoReleaser creates it: run the Release workflow for $TAG, which calls this one."
             exit 1
           }
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: v4.3.1
       - name: Package the chart at the release version
