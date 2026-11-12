@@ -69,7 +69,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `start` | string | Where a new consumer starts. kafka, redis streams, eventhubs: earliest or latest (default latest); jetstream: all, new (default) or last. One of `earliest`, `latest`, `all`, `new`, `last`. |
 | `sasl` | [SASL](#sasl) | kafka: SASL authentication. |
 | `username` | string | mqtt, nats, redis, amqp: user name (mqtt, amqp and redis also take it in the URL; this field wins). |
-| `password` | string | mqtt, nats, redis, amqp: password; use {{secrets.X}}. |
+| `password` | string | mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}. |
 | `token` | string | nats: authentication token; use {{secrets.X}}. |
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
 | `subject` | string | nats: subject (wildcards * and > allowed); jetstream: filter subject of the consumer. |
@@ -122,6 +122,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `from` | string | smtp: the sender, as an address or as Name <address>. |
+| `to` | string[] | smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas. |
 | `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
@@ -135,11 +137,11 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `topic` | string | Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic. |
 | `key` | string | Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default <relay>/<date>/<id>.json, or .ndjson for a batch). |
 | `sasl` | [SASL](#sasl) | kafka: SASL authentication. |
-| `username` | string | mqtt, nats, redis, amqp: user name. |
-| `password` | string | mqtt, nats, redis, amqp: password; use {{secrets.X}}. |
+| `username` | string | mqtt, nats, redis, amqp, smtp: user name. |
+| `password` | string | mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}. |
 | `token` | string | nats: authentication token; use {{secrets.X}}. |
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
-| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
+| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
 | `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |
@@ -206,6 +208,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `from` | string | smtp: the sender, as an address or as Name <address>. |
+| `to` | string[] | smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas. |
 | `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
@@ -219,11 +223,11 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `topic` | string | Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic. |
 | `key` | string | Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default <relay>/<date>/<id>.json, or .ndjson for a batch). |
 | `sasl` | [SASL](#sasl) | kafka: SASL authentication. |
-| `username` | string | mqtt, nats, redis, amqp: user name. |
-| `password` | string | mqtt, nats, redis, amqp: password; use {{secrets.X}}. |
+| `username` | string | mqtt, nats, redis, amqp, smtp: user name. |
+| `password` | string | mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}. |
 | `token` | string | nats: authentication token; use {{secrets.X}}. |
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
-| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
+| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
 | `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |
@@ -464,6 +468,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `from` | string | smtp: the sender, as an address or as Name <address>. |
+| `to` | string[] | smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas. |
 | `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
@@ -477,11 +483,11 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `topic` | string | Per-message template of the topic. kafka, mqtt, pubsub: the topic; sns: the topic ARN; eventhubs: the event hub; servicebus: the topic. |
 | `key` | string | Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default <relay>/<date>/<id>.json, or .ndjson for a batch). |
 | `sasl` | [SASL](#sasl) | kafka: SASL authentication. |
-| `username` | string | mqtt, nats, redis, amqp: user name. |
-| `password` | string | mqtt, nats, redis, amqp: password; use {{secrets.X}}. |
+| `username` | string | mqtt, nats, redis, amqp, smtp: user name. |
+| `password` | string | mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}. |
 | `token` | string | nats: authentication token; use {{secrets.X}}. |
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
-| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
+| `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
 | `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |

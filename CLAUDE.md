@@ -122,6 +122,7 @@ These record where the build departs from the design, and the decisions the desi
   - Error tags are `<protocol>:<code>`, and several modules also add a generic `connect`, `timeout`, `5xx`, `4xx` or `429`.
   - The brokers and clouds register in `wiring_full.go`. tcp/udp and openai stay in hikyaku-lite.
 - **`schedule` source:** `protocols/schedule`, in the lite build too. The cron parser is `internal/cron` in the root module, so `config.Validate` checks `cron` with it (it embeds `time/tzdata` for `timezone`). The message ID is `<source>@<tick in UTC>`. A missed tick is skipped. The source sleeps one minute at most, then reads the clock again.
+- **`smtp` destination:** `protocols/smtp`, on `net/smtp`, in the lite build too. `from` and `to` are keys of `Endpoint`; `username`, `password`, `subject`, `body` and `headers` are reused. One connection per delivery. `smtp://` requires STARTTLS, `smtps://` is implicit TLS, `smtp+plain://` has none. Sign-in is PLAIN, or LOGIN when the server offers only that. A `4yz` reply is transient and a `5yz` one permanent, tagged `smtp:<code>` only: the generic `4xx`/`5xx` tags mean the opposite for retries. The tests run against a small SMTP server in `server_test.go`.
 - **`split: lines`** (s3, gcs) is a line split, not jq: `engine.Check` skips it for those types.
 - **Listeners:** grpc, tcp and udp sources need a port of their own (validation rejects a shared one); http, ws, sse and openai share ports by path.
 - **DTLS (udp):** pion/dtls v4, pure Go, so hikyaku-lite has it too (about 1.8 MB).

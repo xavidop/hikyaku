@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"slices"
@@ -33,7 +34,7 @@ var (
 	sinkTypes = []string{
 		"http", "https", "ws", "wss", "sse", "stdout", "stderr", "file", "fault", "group",
 		"grpc", "tcp", "udp", "kafka", "nats", "jetstream", "mqtt", "amqp", "redis",
-		"sqs", "sns", "eventbridge", "pubsub", "servicebus", "eventhubs", "s3", "gcs", "model",
+		"sqs", "sns", "eventbridge", "pubsub", "servicebus", "eventhubs", "s3", "gcs", "model", "smtp",
 	}
 	fullOnly = map[string]bool{
 		"grpc": true, "kafka": true, "nats": true, "jetstream": true, "mqtt": true, "amqp": true, "redis": true,
@@ -419,6 +420,49 @@ func (v *validator) sources() map[string]bool {
 // WebhookProviders are the senders auth.webhook can verify.
 var WebhookProviders = []string{"github", "stripe", "slack", "shopify", "twilio"}
 
+// smtp checks an email destination.
+func (v *validator) smtp(p string, e Endpoint) {
+	if e.Type != "smtp" {
+		if e.From != "" {
+			v.add(p+".from", "applies to smtp destinations only")
+		}
+		if len(e.To) > 0 {
+			v.add(p+".to", "applies to smtp destinations only")
+		}
+		return
+	}
+	u, err := url.Parse(e.URL)
+	switch {
+	case e.URL == "":
+		v.add(p+".url", "is required: smtp://host, smtps://host or smtp+plain://host")
+	case err != nil || u.Hostname() == "" || !slices.Contains([]string{"smtp", "smtps", "smtp+plain"}, u.Scheme):
+		v.add(p+".url", "must be smtp://host (STARTTLS), smtps://host (TLS) or smtp+plain://host (no TLS)")
+	case u.User != nil:
+		v.add(p+".url", "put the user name and password in username and password, not in the url")
+	case u.Scheme == "smtp+plain" && e.TLS != nil:
+		v.add(p+".tls", "does not go with smtp+plain://")
+	}
+	if (e.Username == "") != (e.Password == "") {
+		v.add(p, "username and password go together")
+	}
+	if e.From == "" {
+		v.add(p+".from", "is required")
+	} else if _, err := mail.ParseAddress(e.From); err != nil {
+		v.add(p+".from", "%q is not an email address", e.From)
+	}
+	if len(e.To) == 0 {
+		v.add(p+".to", "needs at least one address")
+	}
+	for i, t := range e.To {
+		if strings.Contains(t, "{{") {
+			continue // a per-message template: checked when it renders
+		}
+		if _, err := mail.ParseAddressList(t); err != nil {
+			v.add(fmt.Sprintf("%s.to[%d]", p, i), "%q is not an email address", t)
+		}
+	}
+}
+
 // MinScheduleInterval is the shortest interval of a schedule source.
 const MinScheduleInterval = time.Second
 
@@ -649,6 +693,7 @@ func (v *validator) endpoint(p string, e Endpoint) {
 	if (e.Type == "http" || e.Type == "https") && e.Compression != "" && e.Compression != "gzip" && e.Compression != "none" {
 		v.add(p+".compression", "must be gzip or none for an http destination")
 	}
+	v.smtp(p, e)
 	if o := e.OAuth2; o != nil {
 		if e.Type != "http" && e.Type != "https" {
 			v.add(p+".oauth2", "applies to http and https destinations")

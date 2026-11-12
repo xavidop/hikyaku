@@ -368,6 +368,17 @@
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
+        "from": {
+          "type": "string",
+          "description": "smtp: the sender, as an address or as Name \u003caddress\u003e."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas."
+        },
         "oauth2": {
           "$ref": "#/$defs/OAuth2",
           "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
@@ -436,11 +447,11 @@
         },
         "username": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: user name."
+          "description": "mqtt, nats, redis, amqp, smtp: user name."
         },
         "password": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+          "description": "mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."
         },
         "token": {
           "type": "string",
@@ -452,7 +463,7 @@
         },
         "subject": {
           "type": "string",
-          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject."
         },
         "acks": {
           "type": "string",
@@ -685,6 +696,17 @@
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
+        "from": {
+          "type": "string",
+          "description": "smtp: the sender, as an address or as Name \u003caddress\u003e."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas."
+        },
         "oauth2": {
           "$ref": "#/$defs/OAuth2",
           "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
@@ -753,11 +775,11 @@
         },
         "username": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: user name."
+          "description": "mqtt, nats, redis, amqp, smtp: user name."
         },
         "password": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+          "description": "mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."
         },
         "token": {
           "type": "string",
@@ -769,7 +791,7 @@
         },
         "subject": {
           "type": "string",
-          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject."
         },
         "acks": {
           "type": "string",
@@ -1473,6 +1495,17 @@
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
+        "from": {
+          "type": "string",
+          "description": "smtp: the sender, as an address or as Name \u003caddress\u003e."
+        },
+        "to": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas."
+        },
         "oauth2": {
           "$ref": "#/$defs/OAuth2",
           "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
@@ -1541,11 +1574,11 @@
         },
         "username": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: user name."
+          "description": "mqtt, nats, redis, amqp, smtp: user name."
         },
         "password": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+          "description": "mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."
         },
         "token": {
           "type": "string",
@@ -1557,7 +1590,7 @@
         },
         "subject": {
           "type": "string",
-          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."
+          "description": "Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject."
         },
         "acks": {
           "type": "string",
@@ -2699,7 +2732,7 @@
         },
         "password": {
           "type": "string",
-          "description": "mqtt, nats, redis, amqp: password; use {{secrets.X}}."
+          "description": "mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."
         },
         "token": {
           "type": "string",

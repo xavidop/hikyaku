@@ -31,6 +31,7 @@ updates:
       - "/protocols/openai"
       - "/protocols/redis"
       - "/protocols/schedule"
+      - "/protocols/smtp"
       - "/protocols/sse"
       - "/protocols/tcp"
       - "/protocols/ws"

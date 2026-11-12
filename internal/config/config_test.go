@@ -752,3 +752,33 @@ func TestValidateSchedule(t *testing.T) {
 		assert.Contains(t, errText(t, err), want, s)
 	}
 }
+
+func TestValidateSMTP(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	for _, ok := range []string{
+		`{ name: out, type: smtp, url: "smtp://mail.test", username: u, password: p, from: "Relay <relay@x.test>", to: [ops@x.test, "{{ .json.owner }}"], subject: "{{ .json.s }}" }`,
+		`{ name: out, type: smtp, url: "smtps://mail.test:465", from: relay@x.test, to: ["a@x.test, b@x.test"] }`,
+		`{ name: out, type: smtp, url: "smtp+plain://localhost:1025", from: relay@x.test, to: [ops@x.test] }`,
+	} {
+		_, err := loadYAML(t, dest(ok))
+		require.NoError(t, err, ok)
+	}
+	for d, want := range map[string]string{
+		`{ name: out, type: smtp, from: relay@x.test, to: [ops@x.test] }`:                                                       `destination "out".url: is required`,
+		`{ name: out, type: smtp, url: "https://mail.test", from: relay@x.test, to: [ops@x.test] }`:                             `destination "out".url: must be smtp://host`,
+		`{ name: out, type: smtp, url: "smtp://u:p@mail.test", from: relay@x.test, to: [ops@x.test] }`:                          `destination "out".url: put the user name and password in username and password`,
+		`{ name: out, type: smtp, url: "smtp+plain://mail.test", tls: { server_name: x }, from: relay@x.test, to: [o@x.test] }`: `destination "out".tls: does not go with smtp+plain://`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", username: u, from: relay@x.test, to: [ops@x.test] }`:                 `destination "out": username and password go together`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", to: [ops@x.test] }`:                                                  `destination "out".from: is required`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay, to: [ops@x.test] }`:                                     `destination "out".from: "relay" is not an email address`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay@x.test }`:                                                `destination "out".to: needs at least one address`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay@x.test, to: [nobody] }`:                                  `destination "out".to[0]: "nobody" is not an email address`,
+		`{ name: out, type: stdout, from: relay@x.test }`:                                                                       `destination "out".from: applies to smtp destinations only`,
+		`{ name: out, type: stdout, to: [ops@x.test] }`:                                                                         `destination "out".to: applies to smtp destinations only`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}

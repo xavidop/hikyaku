@@ -188,7 +188,7 @@ type Source struct {
 
 	SASL            *SASL    `yaml:"sasl,omitempty" jsonschema_description:"kafka: SASL authentication."`
 	Username        string   `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: user name (mqtt, amqp and redis also take it in the URL; this field wins)."`
-	Password        string   `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: password; use {{secrets.X}}."`
+	Password        string   `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."`
 	Token           string   `yaml:"token,omitempty" jsonschema_description:"nats: authentication token; use {{secrets.X}}."`
 	CredsFile       string   `yaml:"creds_file,omitempty" jsonschema_description:"nats: a .creds file (JWT and NKey seed)."`
 	Subject         string   `yaml:"subject,omitempty" jsonschema_description:"nats: subject (wildcards * and > allowed); jetstream: filter subject of the consumer."`
@@ -367,6 +367,8 @@ type Endpoint struct {
 	Body    string            `yaml:"body,omitempty" jsonschema_description:"Per-message template of the outgoing body (default: the message body)."`
 	TLS     *TLS              `yaml:"tls,omitempty" jsonschema_description:"Client TLS, DTLS for udp (mTLS with cert_file and key_file)."`
 	Sign    *Sign             `yaml:"sign,omitempty" jsonschema_description:"http: sign every request with an HMAC of its body, so the receiver can check who sent it."`
+	From    string            `yaml:"from,omitempty" jsonschema_description:"smtp: the sender, as an address or as Name <address>."`
+	To      []string          `yaml:"to,omitempty" jsonschema_description:"smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas."`
 	OAuth2  *OAuth2           `yaml:"oauth2,omitempty" jsonschema_description:"http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."`
 	Path    string            `yaml:"path,omitempty" jsonschema_description:"file: the file appended to; sse: the stream path (default /)."`
 	Listen  string            `yaml:"listen,omitempty" jsonschema_description:"sse: address the event stream is served on."`
@@ -381,11 +383,11 @@ type Endpoint struct {
 	Key     string            `yaml:"key,omitempty" jsonschema_description:"Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default <relay>/<date>/<id>.json, or .ndjson for a batch)."`
 
 	SASL            *SASL  `yaml:"sasl,omitempty" jsonschema_description:"kafka: SASL authentication."`
-	Username        string `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: user name."`
-	Password        string `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: password; use {{secrets.X}}."`
+	Username        string `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: user name."`
+	Password        string `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."`
 	Token           string `yaml:"token,omitempty" jsonschema_description:"nats: authentication token; use {{secrets.X}}."`
 	CredsFile       string `yaml:"creds_file,omitempty" jsonschema_description:"nats: a .creds file (JWT and NKey seed)."`
-	Subject         string `yaml:"subject,omitempty" jsonschema_description:"Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."`
+	Subject         string `yaml:"subject,omitempty" jsonschema_description:"Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject."`
 	Acks            string `yaml:"acks,omitempty" jsonschema:"enum=all,enum=leader,enum=none" jsonschema_description:"kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."`
 	Compression     string `yaml:"compression,omitempty" jsonschema:"enum=none,enum=gzip,enum=snappy,enum=lz4,enum=zstd" jsonschema_description:"kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."`
 	QoS             *int   `yaml:"qos,omitempty" jsonschema:"enum=0,enum=1,enum=2" jsonschema_description:"mqtt: publish QoS (default 1)."`

@@ -44,6 +44,7 @@ The table says what each protocol can do, and in which source modes.
 | `s3` / `gcs` | poll | yes | an object per message, or per batch as NDJSON |
 | `pubsub` | subscribe | yes | Google Cloud Pub/Sub, ordering keys |
 | `servicebus` / `eventhubs` | subscribe | yes | sessions and lock renewal; Event Hubs checkpoints and leases in a store |
+| `smtp` | | yes | one email per message; STARTTLS or TLS, `PLAIN` and `LOGIN` sign-in |
 | `openai` | listen | | the [LLM proxy](/docs/llm-proxy/)'s OpenAI-compatible endpoint |
 | `model` | | yes | a Genkit model answering a chat request ([LLM proxy](/docs/llm-proxy/)) |
 | `fault` | | yes | injects failures, latency and status codes, for tests |
@@ -51,7 +52,7 @@ The table says what each protocol can do, and in which source modes.
 
 gRPC, the brokers and the clouds are in the full build only. `hikyaku-lite` leaves their SDKs
 out, and [out-of-process plugins](/docs/plugins/) with them. It keeps http, ws, sse, tcp, udp,
-the files, the schedule source, the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
+the files, the schedule source, email (smtp), the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
 others, but does not run it. Each module's README, linked from its section below, lists every
 key, the attributes it sets and its error tags.
 
@@ -405,6 +406,36 @@ routes:
   `idempotent` destination takes the message once.
 
 [Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/schedule).
+
+## Email (smtp)
+
+An smtp destination sends each message as one email. It is the plain way to get an
+[alert](/docs/resilience/#alerts) or a report to people.
+
+```yaml
+destinations:
+  - name: ops-mail
+    type: smtp
+    url: smtp://smtp.example.com          # STARTTLS, port 587
+    username: relay@example.com
+    password: "{{secrets.SMTP_PASSWORD}}"
+    from: "hikyaku <relay@example.com>"
+    to: [ops@example.com, "{{ .json.owner }}"]
+    subject: "Order {{ .json.id }} needs a look"
+    body: "Order {{ .json.id }} failed: {{ .json.reason }}"
+```
+
+- The URL picks the transport: `smtps://` is TLS from the first byte (port 465), `smtp://`
+  upgrades with STARTTLS and refuses a server without it (port 587), and `smtp+plain://` uses no
+  TLS, for a relay on the same host or network (port 25).
+- `to`, `subject`, `body` and `headers` are per-message templates. Without `body`, the email is
+  the message body.
+- A `4yz` reply from the server is retried. A `5yz` reply, such as a mailbox that does not
+  exist, is permanent. The tags are `smtp:<code>`.
+- A success means the server took the email, not that it reached an inbox.
+- There is no email source.
+
+[Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/smtp).
 
 ## fault
 
