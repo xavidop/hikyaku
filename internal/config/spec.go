@@ -364,6 +364,7 @@ type Endpoint struct {
 	Body    string            `yaml:"body,omitempty" jsonschema_description:"Per-message template of the outgoing body (default: the message body)."`
 	TLS     *TLS              `yaml:"tls,omitempty" jsonschema_description:"Client TLS, DTLS for udp (mTLS with cert_file and key_file)."`
 	Sign    *Sign             `yaml:"sign,omitempty" jsonschema_description:"http: sign every request with an HMAC of its body, so the receiver can check who sent it."`
+	OAuth2  *OAuth2           `yaml:"oauth2,omitempty" jsonschema_description:"http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."`
 	Path    string            `yaml:"path,omitempty" jsonschema_description:"file: the file appended to; sse: the stream path (default /)."`
 	Listen  string            `yaml:"listen,omitempty" jsonschema_description:"sse: address the event stream is served on."`
 	Format  string            `yaml:"format,omitempty" jsonschema:"enum=envelope,enum=body" jsonschema_description:"file/stdout/stderr: write each message as an envelope line (default) or its body."`
@@ -542,6 +543,19 @@ type Sign struct {
 	Prefix          string `yaml:"prefix,omitempty" jsonschema_description:"Text put before the digest, such as sha256=."`
 	Encoding        string `yaml:"encoding,omitempty" jsonschema:"enum=hex,enum=base64" jsonschema_description:"Digest encoding (default hex)."`
 	TimestampHeader string `yaml:"timestamp_header,omitempty" jsonschema_description:"When set, this header carries the send time in Unix seconds, and the signature covers <timestamp>.<body>, so a receiver can refuse an old request."`
+}
+
+// OAuth2 is the client credentials grant of an http destination: hikyaku
+// asks token_url for an access token, keeps it until shortly before it
+// expires, and sends it as a bearer token.
+type OAuth2 struct {
+	TokenURL     string            `yaml:"token_url" jsonschema:"required" jsonschema_description:"The authorization server's token endpoint."`
+	ClientID     string            `yaml:"client_id" jsonschema:"required" jsonschema_description:"Client ID."`
+	ClientSecret string            `yaml:"client_secret" jsonschema:"required" jsonschema_description:"Client secret, usually {{secrets.NAME}}."`
+	Scopes       []string          `yaml:"scopes,omitempty" jsonschema_description:"Scopes to ask for."`
+	Audience     string            `yaml:"audience,omitempty" jsonschema_description:"The audience parameter, for servers that need one (Auth0)."`
+	Params       map[string]string `yaml:"params,omitempty" jsonschema_description:"More form parameters for the token request, such as resource."`
+	ClientAuth   string            `yaml:"client_auth,omitempty" jsonschema:"enum=basic,enum=body" jsonschema_description:"Where the client ID and secret go: basic (HTTP Basic, the default) or body (form fields)."`
 }
 
 // OnInvalid is what a route does with a body its validate step refused.

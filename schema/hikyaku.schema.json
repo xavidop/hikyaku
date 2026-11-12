@@ -368,6 +368,10 @@
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
+        "oauth2": {
+          "$ref": "#/$defs/OAuth2",
+          "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
+        },
         "path": {
           "type": "string",
           "description": "file: the file appended to; sse: the stream path (default /)."
@@ -680,6 +684,10 @@
         "sign": {
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
+        },
+        "oauth2": {
+          "$ref": "#/$defs/OAuth2",
+          "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
         },
         "path": {
           "type": "string",
@@ -1455,6 +1463,10 @@
           "$ref": "#/$defs/Sign",
           "description": "http: sign every request with an HMAC of its body, so the receiver can check who sent it."
         },
+        "oauth2": {
+          "$ref": "#/$defs/OAuth2",
+          "description": "http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."
+        },
         "path": {
           "type": "string",
           "description": "file: the file appended to; sse: the stream path (default /)."
@@ -1799,6 +1811,55 @@
       "type": "object",
       "required": [
         "to"
+      ]
+    },
+    "OAuth2": {
+      "properties": {
+        "token_url": {
+          "type": "string",
+          "description": "The authorization server's token endpoint."
+        },
+        "client_id": {
+          "type": "string",
+          "description": "Client ID."
+        },
+        "client_secret": {
+          "type": "string",
+          "description": "Client secret, usually {{secrets.NAME}}."
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Scopes to ask for."
+        },
+        "audience": {
+          "type": "string",
+          "description": "The audience parameter, for servers that need one (Auth0)."
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "More form parameters for the token request, such as resource."
+        },
+        "client_auth": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "body"
+          ],
+          "description": "Where the client ID and secret go: basic (HTTP Basic, the default) or body (form fields)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token_url",
+        "client_id",
+        "client_secret"
       ]
     },
     "OTel": {

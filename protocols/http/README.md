@@ -155,6 +155,7 @@ A `2xx` answer is a success. Its status, headers and body (up to 10MiB) are the 
 | `tls` | Client TLS: `ca_file`, `cert_file` + `key_file`, `server_name`, `insecure_skip_verify`. An `https` destination uses TLS 1.2 or newer. |
 | `idempotency_header` | The header that carries the idempotency key (default `Idempotency-Key`). |
 | `sign` | Sign every request with an HMAC of its body. See [Signing](#signing). |
+| `oauth2` | Fetch an OAuth 2.0 access token and send it as a bearer token. See [OAuth 2.0](#oauth-20). |
 | `compression` | `gzip` compresses the request body and sets `Content-Encoding: gzip`. Default `none`. See [Compression](#compression). |
 
 `timeout`, `retry`, the circuit breaker, groups, hedging, `batch` and the fallback chain work as for every destination. With `batch`, one request carries the whole batch: an NDJSON body (`application/x-ndjson`, the default) or a JSON array (`batch.format: json_array`). In a group, a member with `health_check.path` is probed with a `GET` on its origin plus that path. Otherwise the health check dials the host of a static URL and sends no request, because a webhook endpoint should not see probes. A templated URL's health check always passes.
@@ -193,6 +194,40 @@ The receiver computes the same HMAC over what it received and compares the two i
 expected = "sha256=" + hmac.new(secret, timestamp + b"." + body, hashlib.sha256).hexdigest()
 ok = hmac.compare_digest(expected, request.headers["X-Signature-256"])
 ```
+
+### OAuth 2.0
+
+```yaml
+destinations:
+  - name: crm
+    type: https
+    url: https://api.crm.example.com/v1/events
+    oauth2:
+      token_url: https://login.crm.example.com/oauth2/token
+      client_id: "{{secrets.CRM_CLIENT_ID}}"
+      client_secret: "{{secrets.CRM_CLIENT_SECRET}}"
+      scopes: [events.write]
+```
+
+With `oauth2`, hikyaku asks the token endpoint for an access token with the client credentials grant, and sends it as `Authorization: Bearer <token>`. It keeps the token and asks for a new one 30 seconds before the old one expires. Deliveries that need a token while one is being fetched wait for that one fetch.
+
+| Key | Meaning |
+|---|---|
+| `token_url` | The authorization server's token endpoint. Required. |
+| `client_id` | The client ID. Required. |
+| `client_secret` | The client secret. Required. Use `{{secrets.NAME}}`. |
+| `scopes` | The scopes to ask for. |
+| `audience` | The `audience` parameter, for servers that need one (Auth0). |
+| `params` | More form parameters for the token request, such as `resource`. |
+| `client_auth` | Where the client ID and secret go: `basic` (HTTP Basic, the default) or `body` (form fields). |
+
+- When the destination answers `401`, hikyaku drops the token, fetches a new one and sends the request once more. A second `401` is the delivery's failure.
+- When no token can be fetched, the delivery fails with the `oauth2` tag and nothing is sent. A token endpoint that cannot be reached, or that answers `5xx` or `429`, is a transient failure, so the retry policy applies. Any other answer (wrong credentials, a scope that is not allowed) is permanent.
+- The token is kept in memory, per destination, in this process. It is never logged.
+- `oauth2` does not go with an `Authorization` header in `headers`.
+- The token endpoint uses the destination's `tls` settings. The [egress](#egress) guard does not apply to it: the spec names it, not a message.
+
+Only the client credentials grant is supported. A flow that needs a person to sign in (authorization code) is not.
 
 ### Compression
 

@@ -251,6 +251,9 @@ header records a correction for [history-aware routing](/docs/history/#the-feedb
 whose host is a template is checked against [`egress`](/docs/security/#ssrf-guard), and so is
 every redirect it follows.
 
+With [`oauth2`](/docs/security/#oauth-20-for-deliveries), the destination fetches an OAuth 2.0
+access token with its client ID and secret, and sends it as a bearer token.
+
 `compression: gzip` compresses every request body and sets `Content-Encoding: gzip`. It pays off
 for large bodies and [batches](/docs/delivery/#batching). The receiver must accept gzip requests.
 With [`sign`](/docs/security/#signed-deliveries), the signature covers the compressed bytes.

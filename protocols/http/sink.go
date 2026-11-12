@@ -47,9 +47,10 @@ type Sink struct {
 	headers map[string]*transform.Template
 	body    *transform.Template
 	client  *http.Client
-	guard   *guard  // set for templated URLs
-	signer  *signer // set with sign:
-	gzip    bool    // compression: gzip
+	guard   *guard       // set for templated URLs
+	signer  *signer      // set with sign:
+	gzip    bool         // compression: gzip
+	oauth   *tokenSource // set with oauth2:
 }
 
 func newSink(s plugin.Spec) (*Sink, error) {
@@ -128,6 +129,15 @@ func newSink(s plugin.Spec) (*Sink, error) {
 		tr.Proxy = nil // a proxy would dial for us, around the guard
 	}
 	sk.client = &http.Client{Transport: tr}
+	if ep.OAuth2 != nil {
+		// The token endpoint is named in the spec, not by a message: it gets
+		// the destination's TLS settings, and no egress guard.
+		ttr := tr.Clone()
+		ttr.DialContext, ttr.Proxy = base.DialContext, http.ProxyFromEnvironment
+		if sk.oauth, err = newTokenSource(ep.OAuth2, &http.Client{Transport: ttr}); err != nil {
+			return nil, fmt.Errorf("destination %s: %w", s.Name, err)
+		}
+	}
 	if sk.guard != nil {
 		// A redirect is another request: its host must pass egress.allow
 		// too (the dialer already checks the address).
@@ -179,48 +189,9 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 		}
 		body = z
 	}
-	req, err := http.NewRequestWithContext(ctx, s.method, target, bytes.NewReader(body))
+	resp, data, err := s.send(ctx, env, target, body)
 	if err != nil {
-		return nil, plugin.Permanentf("request: %v", err)
-	}
-	for k, vs := range env.Headers {
-		ck := textproto.CanonicalMIMEHeaderKey(k)
-		if dropHeaders[ck] {
-			continue
-		}
-		for _, v := range vs {
-			req.Header.Add(ck, v)
-		}
-	}
-	if env.ContentType != "" {
-		req.Header.Set("Content-Type", env.ContentType)
-	}
-	for k, t := range s.headers {
-		v, err := t.Render(env)
-		if err != nil {
-			return nil, plugin.Wrap(plugin.Permanent, []string{"template"}, err)
-		}
-		req.Header.Set(k, v)
-	}
-	if s.gzip {
-		req.Header.Set("Content-Encoding", "gzip")
-	}
-	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "hikyaku")
-	}
-	if s.signer != nil {
-		// Last, over the bytes that go out: a signature the message came in
-		// with (forwarded like any header) is replaced by ours.
-		s.signer.sign(req, body)
-	}
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, classify(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponse))
-	if err != nil {
-		return nil, plugin.Wrap(plugin.Transient, []string{plugin.TagConnect}, fmt.Errorf("reading the response: %w", err))
+		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, plugin.StatusError(resp.StatusCode, plugin.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now()), snippet(data))
@@ -240,6 +211,78 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 		}
 	}
 	return res, nil
+}
+
+// send sends the request. With oauth2, a 401 means the destination no
+// longer takes the token (revoked, or its keys changed): the request is sent
+// once more with a new one.
+func (s *Sink) send(ctx context.Context, env *envelope.Envelope, target string, body []byte) (*http.Response, []byte, error) {
+	if s.oauth == nil {
+		return s.once(ctx, env, target, body, "")
+	}
+	for try := 0; ; try++ {
+		tok, err := s.oauth.get(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		resp, data, err := s.once(ctx, env, target, body, tok)
+		if err != nil || resp.StatusCode != http.StatusUnauthorized || try > 0 {
+			return resp, data, err
+		}
+		s.oauth.drop(tok)
+	}
+}
+
+// once sends one request and reads its answer (the response's body is
+// closed: data holds it).
+func (s *Sink) once(ctx context.Context, env *envelope.Envelope, target string, body []byte, token string) (*http.Response, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, s.method, target, bytes.NewReader(body))
+	if err != nil {
+		return nil, nil, plugin.Permanentf("request: %v", err)
+	}
+	for k, vs := range env.Headers {
+		ck := textproto.CanonicalMIMEHeaderKey(k)
+		if dropHeaders[ck] {
+			continue
+		}
+		for _, v := range vs {
+			req.Header.Add(ck, v)
+		}
+	}
+	if env.ContentType != "" {
+		req.Header.Set("Content-Type", env.ContentType)
+	}
+	for k, t := range s.headers {
+		v, err := t.Render(env)
+		if err != nil {
+			return nil, nil, plugin.Wrap(plugin.Permanent, []string{"template"}, err)
+		}
+		req.Header.Set(k, v)
+	}
+	if s.gzip {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "hikyaku")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if s.signer != nil {
+		// Last, over the bytes that go out: a signature the message came in
+		// with (forwarded like any header) is replaced by ours.
+		s.signer.sign(req, body)
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, nil, classify(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponse))
+	if err != nil {
+		return nil, nil, plugin.Wrap(plugin.Transient, []string{plugin.TagConnect}, fmt.Errorf("reading the response: %w", err))
+	}
+	return resp, data, nil
 }
 
 // classify tags a transport failure: a refused or reset connection is

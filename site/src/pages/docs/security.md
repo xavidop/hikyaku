@@ -130,6 +130,34 @@ It is the sending side of a source's `auth.hmac`: without `timestamp_header`, a 
 with the same settings verifies it. [The http module's README](https://github.com/xavidop/hikyaku/tree/main/protocols/http#signing)
 has every key and a receiver's check.
 
+## OAuth 2.0 for deliveries
+
+An http or https destination can get its own access token, for an API that takes nothing else.
+
+```yaml
+destinations:
+  - name: crm
+    type: https
+    url: https://api.crm.example.com/v1/events
+    oauth2:
+      token_url: https://login.crm.example.com/oauth2/token
+      client_id: "{{secrets.CRM_CLIENT_ID}}"
+      client_secret: "{{secrets.CRM_CLIENT_SECRET}}"
+      scopes: [events.write]
+```
+
+- hikyaku asks `token_url` for a token with the client credentials grant, and sends it as
+  `Authorization: Bearer <token>`.
+- It keeps the token in memory and fetches a new one 30 seconds before the old one expires.
+- When the destination answers `401`, it fetches a new token and sends the request once more.
+- When no token can be fetched, nothing is sent and the delivery fails with the `oauth2` tag. An
+  unreachable token endpoint, a `5xx` or a `429` is retried like any transient failure. Wrong
+  credentials are permanent.
+- `audience`, `params` and `client_auth: body` cover the servers that need more. See the
+  [module README](https://github.com/xavidop/hikyaku/tree/main/protocols/http#oauth-20).
+
+Only the client credentials grant is supported: there is no flow where a person signs in.
+
 ## SSRF guard
 
 SSRF (server-side request forgery) is an attack where someone makes a server send a request to a

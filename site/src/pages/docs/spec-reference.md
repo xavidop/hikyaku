@@ -120,6 +120,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -201,6 +202,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -458,6 +460,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `body` | string | Per-message template of the outgoing body (default: the message body). |
 | `tls` | [TLS](#tls) | Client TLS, DTLS for udp (mTLS with cert_file and key_file). |
 | `sign` | [Sign](#sign) | http: sign every request with an HMAC of its body, so the receiver can check who sent it. |
+| `oauth2` | [OAuth2](#oauth2) | http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token. |
 | `path` | string | file: the file appended to; sse: the stream path (default /). |
 | `listen` | string | sse: address the event stream is served on. |
 | `format` | string | file/stdout/stderr: write each message as an envelope line (default) or its body. One of `envelope`, `body`. |
@@ -735,6 +738,18 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `on` | string[] | The events that alert (default dead_letter and circuit_open). |
 | `to` **(required)** | string[] | The destinations that get the alert, a JSON message. |
 | `every` | [Duration](#duration) | At most one alert per event and subject in this time; the next one counts what happened meanwhile (default 1m). |
+
+## `OAuth2`
+
+| Key | Type | Description |
+|---|---|---|
+| `token_url` **(required)** | string | The authorization server's token endpoint. |
+| `client_id` **(required)** | string | Client ID. |
+| `client_secret` **(required)** | string | Client secret, usually {{secrets.NAME}}. |
+| `scopes` | string[] | Scopes to ask for. |
+| `audience` | string | The audience parameter, for servers that need one (Auth0). |
+| `params` | map of string | More form parameters for the token request, such as resource. |
+| `client_auth` | string | Where the client ID and secret go: basic (HTTP Basic, the default) or body (form fields). One of `basic`, `body`. |
 
 ## `OTel`
 

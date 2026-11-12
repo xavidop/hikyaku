@@ -558,6 +558,35 @@ func (v *validator) endpoint(p string, e Endpoint) {
 	if (e.Type == "http" || e.Type == "https") && e.Compression != "" && e.Compression != "gzip" && e.Compression != "none" {
 		v.add(p+".compression", "must be gzip or none for an http destination")
 	}
+	if o := e.OAuth2; o != nil {
+		if e.Type != "http" && e.Type != "https" {
+			v.add(p+".oauth2", "applies to http and https destinations")
+		}
+		if o.TokenURL == "" {
+			v.add(p+".oauth2.token_url", "is required")
+		} else if u, err := url.Parse(o.TokenURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			v.add(p+".oauth2.token_url", "must be an http or https URL")
+		}
+		if o.ClientID == "" {
+			v.add(p+".oauth2.client_id", "is required")
+		}
+		if o.ClientSecret == "" {
+			v.add(p+".oauth2.client_secret", "is required")
+		}
+		if o.ClientAuth != "" && o.ClientAuth != "basic" && o.ClientAuth != "body" {
+			v.add(p+".oauth2.client_auth", "must be basic or body")
+		}
+		for k := range o.Params {
+			if k == "grant_type" || k == "client_id" || k == "client_secret" {
+				v.add(p+".oauth2.params."+k, "is set by hikyaku")
+			}
+		}
+		for k := range e.Headers {
+			if strings.EqualFold(k, "Authorization") {
+				v.add(p+".headers."+k, "does not go with oauth2, which sets this header")
+			}
+		}
+	}
 	if sg := e.Sign; sg != nil {
 		if e.Type != "http" && e.Type != "https" {
 			v.add(p+".sign", "applies to http and https destinations")

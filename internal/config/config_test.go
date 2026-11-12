@@ -677,3 +677,24 @@ func TestValidateHTTPCompression(t *testing.T) {
 	_, err = loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", compression: zstd }`))
 	assert.Contains(t, errText(t, err), `destination "out".compression: must be gzip or none for an http destination`)
 }
+
+func TestValidateOAuth2(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	_, err := loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", oauth2: { token_url: "https://login.test/token", client_id: relay, client_secret: k, scopes: [a, b], audience: api, client_auth: body, params: { resource: crm } } }`))
+	require.NoError(t, err)
+	for d, want := range map[string]string{
+		`{ name: out, type: stdout, oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k } }`:                                                    `destination "out".oauth2: applies to http and https destinations`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: {} }`:                                                                                               `destination "out".oauth2.token_url: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "login.test/t", client_id: a, client_secret: k } }`:                                    `destination "out".oauth2.token_url: must be an http or https URL`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_secret: k } }`:                                              `destination "out".oauth2.client_id: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a } }`:                                                  `destination "out".oauth2.client_secret: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k, client_auth: jwt } }`:              `destination "out".oauth2.client_auth: must be basic or body`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k, params: { grant_type: x } } }`:     `oauth2.params.grant_type: is set by hikyaku`,
+		`{ name: out, type: http, url: "http://x.test", headers: { authorization: x }, oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k } }`: `headers.authorization: does not go with oauth2`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
