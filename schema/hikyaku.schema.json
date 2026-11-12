@@ -468,7 +468,7 @@
             "lz4",
             "zstd"
           ],
-          "description": "kafka: batch compression (default none)."
+          "description": "kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."
         },
         "qos": {
           "type": "integer",
@@ -781,7 +781,7 @@
             "lz4",
             "zstd"
           ],
-          "description": "kafka: batch compression (default none)."
+          "description": "kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."
         },
         "qos": {
           "type": "integer",
@@ -1555,7 +1555,7 @@
             "lz4",
             "zstd"
           ],
-          "description": "kafka: batch compression (default none)."
+          "description": "kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."
         },
         "qos": {
           "type": "integer",

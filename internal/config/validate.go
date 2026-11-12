@@ -555,6 +555,9 @@ func (v *validator) endpoint(p string, e Endpoint) {
 	if len(e.Options) > 0 {
 		v.add(p+".options", "applies to plugin types: %s destinations take their settings as keys of their own", e.Type)
 	}
+	if (e.Type == "http" || e.Type == "https") && e.Compression != "" && e.Compression != "gzip" && e.Compression != "none" {
+		v.add(p+".compression", "must be gzip or none for an http destination")
+	}
 	if sg := e.Sign; sg != nil {
 		if e.Type != "http" && e.Type != "https" {
 			v.add(p+".sign", "applies to http and https destinations")

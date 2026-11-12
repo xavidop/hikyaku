@@ -69,6 +69,7 @@ These record where the build departs from the design, and the decisions the desi
   - `cache` is in-process, per step, keyed by the rendered URL and headers, at most 10,000 answers.
 - **`redact` transform:** the JSONPaths of `router.input.redact`, applied to the body. A body that is not JSON is a failure, never a pass.
 - **`sign` (http destinations):** `protocols/http/sign.go`, the sending side of `auth.hmac`. It signs last, over the bytes that go out. `timestamp_header` makes the signature cover `<timestamp>.<body>`, which `auth.hmac` does not verify.
+- **`compression: gzip` (http):** `protocols/http/compress.go`. A destination compresses before it signs. A listen source decodes a gzip request after the size and auth checks (a sender signs the bytes it sent), with `max_body_bytes` as the limit of the decoded body too. The sink never forwards a message's own `Content-Encoding` header.
 - **`rate_limit` (destinations):** one `x/time/rate` bucket per destination, in this process only. `tryEndpoint` takes a token before every attempt and waits holding the worker. A turn past the deadline fails at once with the `deadline` outcome.
 - **`deliver_after` / `deliver_at` (destinations):** `engine/delay.go`. The key is not `delay`, which is the SQS queue delay on `Endpoint`.
   - `deliverOne` holds a route's message until it is due (`ReceivedAt + deliver_after`, or the template's RFC 3339 time), giving its worker slot back like a batch member. `deliver`, `DeliverTo` and fallback hops never hold.

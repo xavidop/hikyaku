@@ -383,7 +383,7 @@ type Endpoint struct {
 	CredsFile       string `yaml:"creds_file,omitempty" jsonschema_description:"nats: a .creds file (JWT and NKey seed)."`
 	Subject         string `yaml:"subject,omitempty" jsonschema_description:"Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."`
 	Acks            string `yaml:"acks,omitempty" jsonschema:"enum=all,enum=leader,enum=none" jsonschema_description:"kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."`
-	Compression     string `yaml:"compression,omitempty" jsonschema:"enum=none,enum=gzip,enum=snappy,enum=lz4,enum=zstd" jsonschema_description:"kafka: batch compression (default none)."`
+	Compression     string `yaml:"compression,omitempty" jsonschema:"enum=none,enum=gzip,enum=snappy,enum=lz4,enum=zstd" jsonschema_description:"kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."`
 	QoS             *int   `yaml:"qos,omitempty" jsonschema:"enum=0,enum=1,enum=2" jsonschema_description:"mqtt: publish QoS (default 1)."`
 	Retain          bool   `yaml:"retain,omitempty" jsonschema_description:"mqtt: publish retained messages."`
 	ClientID        string `yaml:"client_id,omitempty" jsonschema_description:"mqtt: client identifier; kafka: client.id. Default hikyaku-<relay>-<destination>."`

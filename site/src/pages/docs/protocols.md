@@ -175,6 +175,10 @@ attributes `http.method`, `http.path`, `http.query` (when the URL has a query), 
 `auth.api_key.header` are dropped before the message is built. So no destination, file, DLQ
 record or `hikyaku tail` sees them.
 
+A request sent with `Content-Encoding: gzip` is decoded, with no setting: the message holds the
+decoded body. `max_body_bytes` applies to the decoded body too, so a small request cannot expand
+into a huge message (it gets a `413`). Signatures are checked on the bytes as they were sent.
+
 ### Poll
 
 In poll mode, hikyaku is the client, and it fetches `url` on a schedule. Use it for an API that
@@ -246,6 +250,11 @@ receiver can tell a retry from a new message. A reply with an `X-Hikyaku-Reroute
 header records a correction for [history-aware routing](/docs/history/#the-feedback-loop). A URL
 whose host is a template is checked against [`egress`](/docs/security/#ssrf-guard), and so is
 every redirect it follows.
+
+`compression: gzip` compresses every request body and sets `Content-Encoding: gzip`. It pays off
+for large bodies and [batches](/docs/delivery/#batching). The receiver must accept gzip requests.
+With [`sign`](/docs/security/#signed-deliveries), the signature covers the compressed bytes.
+
 [Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/http).
 
 ## WebSocket (ws, wss)

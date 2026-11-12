@@ -138,7 +138,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
 | `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
-| `compression` | string | kafka: batch compression (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
+| `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |
 | `retain` | boolean | mqtt: publish retained messages. |
 | `client_id` | string | mqtt: client identifier; kafka: client.id. Default hikyaku-<relay>-<destination>. |
@@ -219,7 +219,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
 | `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
-| `compression` | string | kafka: batch compression (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
+| `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |
 | `retain` | boolean | mqtt: publish retained messages. |
 | `client_id` | string | mqtt: client identifier; kafka: client.id. Default hikyaku-<relay>-<destination>. |
@@ -476,7 +476,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `creds_file` | string | nats: a .creds file (JWT and NKey seed). |
 | `subject` | string | Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject. |
 | `acks` | string | kafka: acknowledgements a produce waits for (default all, with the idempotent producer). One of `all`, `leader`, `none`. |
-| `compression` | string | kafka: batch compression (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
+| `compression` | string | kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none). One of `none`, `gzip`, `snappy`, `lz4`, `zstd`. |
 | `qos` | integer | mqtt: publish QoS (default 1). One of `0`, `1`, `2`. |
 | `retain` | boolean | mqtt: publish retained messages. |
 | `client_id` | string | mqtt: client identifier; kafka: client.id. Default hikyaku-<relay>-<destination>. |

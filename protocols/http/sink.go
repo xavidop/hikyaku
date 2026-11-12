@@ -34,6 +34,8 @@ var dropHeaders = map[string]bool{
 	"Connection": true, "Keep-Alive": true, "Proxy-Authenticate": true, "Proxy-Authorization": true,
 	"Te": true, "Trailer": true, "Transfer-Encoding": true, "Upgrade": true, "Host": true,
 	"Content-Length": true, "Authorization": true, "Cookie": true, "Accept-Encoding": true,
+	// The body goes out as the message holds it, not as it once came in.
+	"Content-Encoding": true,
 }
 
 // Sink delivers a message as one HTTP request.
@@ -47,6 +49,7 @@ type Sink struct {
 	client  *http.Client
 	guard   *guard  // set for templated URLs
 	signer  *signer // set with sign:
+	gzip    bool    // compression: gzip
 }
 
 func newSink(s plugin.Spec) (*Sink, error) {
@@ -83,6 +86,13 @@ func newSink(s plugin.Spec) (*Sink, error) {
 		if sk.body, err = transform.CompileTemplate("body", ep.Body); err != nil {
 			return nil, fmt.Errorf("destination %s: %w", s.Name, err)
 		}
+	}
+	switch ep.Compression {
+	case "", "none":
+	case "gzip":
+		sk.gzip = true
+	default:
+		return nil, fmt.Errorf("destination %s: compression must be gzip or none, not %q", s.Name, ep.Compression)
 	}
 	if ep.Sign != nil {
 		if sk.signer, err = newSigner(ep.Sign); err != nil {
@@ -162,6 +172,13 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 		}
 		body = []byte(b)
 	}
+	if s.gzip {
+		z, err := gzipBody(body)
+		if err != nil {
+			return nil, plugin.Permanentf("compressing the body: %v", err)
+		}
+		body = z
+	}
 	req, err := http.NewRequestWithContext(ctx, s.method, target, bytes.NewReader(body))
 	if err != nil {
 		return nil, plugin.Permanentf("request: %v", err)
@@ -184,6 +201,9 @@ func (s *Sink) Deliver(ctx context.Context, env *envelope.Envelope) (*plugin.Res
 			return nil, plugin.Wrap(plugin.Permanent, []string{"template"}, err)
 		}
 		req.Header.Set(k, v)
+	}
+	if s.gzip {
+		req.Header.Set("Content-Encoding", "gzip")
 	}
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", "hikyaku")

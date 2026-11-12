@@ -667,3 +667,13 @@ routes:`, 1)
 	require.NoError(t, err)
 	assert.Equal(t, "null", l.Spec.Stores[0].Password)
 }
+
+func TestValidateHTTPCompression(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	_, err := loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", compression: gzip }`))
+	require.NoError(t, err)
+	_, err = loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", compression: zstd }`))
+	assert.Contains(t, errText(t, err), `destination "out".compression: must be gzip or none for an http destination`)
+}

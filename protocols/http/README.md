@@ -155,6 +155,7 @@ A `2xx` answer is a success. Its status, headers and body (up to 10MiB) are the 
 | `tls` | Client TLS: `ca_file`, `cert_file` + `key_file`, `server_name`, `insecure_skip_verify`. An `https` destination uses TLS 1.2 or newer. |
 | `idempotency_header` | The header that carries the idempotency key (default `Idempotency-Key`). |
 | `sign` | Sign every request with an HMAC of its body. See [Signing](#signing). |
+| `compression` | `gzip` compresses the request body and sets `Content-Encoding: gzip`. Default `none`. See [Compression](#compression). |
 
 `timeout`, `retry`, the circuit breaker, groups, hedging, `batch` and the fallback chain work as for every destination. With `batch`, one request carries the whole batch: an NDJSON body (`application/x-ndjson`, the default) or a JSON array (`batch.format: json_array`). In a group, a member with `health_check.path` is probed with a `GET` on its origin plus that path. Otherwise the health check dials the host of a static URL and sends no request, because a webhook endpoint should not see probes. A templated URL's health check always passes.
 
@@ -192,6 +193,22 @@ The receiver computes the same HMAC over what it received and compares the two i
 expected = "sha256=" + hmac.new(secret, timestamp + b"." + body, hashlib.sha256).hexdigest()
 ok = hmac.compare_digest(expected, request.headers["X-Signature-256"])
 ```
+
+### Compression
+
+```yaml
+destinations:
+  - name: archive
+    type: https
+    url: https://logs.example.com/bulk
+    compression: gzip
+    batch:
+      max_messages: 500
+```
+
+`compression: gzip` compresses every request body and sets `Content-Encoding: gzip`. It pays off for large bodies and batches; a small body can come out larger. The receiver must accept gzip requests. With `sign`, the signature covers the compressed bytes, because those are the bytes that go out.
+
+A `listen` source decodes a request sent with `Content-Encoding: gzip` on its own, with no setting. The message holds the decoded body, and the header is removed. `max_body_bytes` applies to the request and to the decoded body: a body that grows past it gets a `413`. `auth.hmac` and `auth.webhook` check the bytes as they were sent. Another encoding (`br`, `zstd`) gets a `400`.
 
 ### Egress
 
