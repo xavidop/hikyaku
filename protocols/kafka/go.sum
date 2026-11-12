@@ -153,6 +153,8 @@ github.com/twmb/franz-go/pkg/kfake v0.0.0-20261109062748-d6ea02a174bc h1:iEwk/B0
 github.com/twmb/franz-go/pkg/kfake v0.0.0-20261109062748-d6ea02a174bc/go.mod h1:HMiZ0NoKeqBbmnF3BRM74siT8nEGqWejQYShFZq2sMk=
 github.com/twmb/franz-go/pkg/kmsg v1.15.1 h1:3sj7ekbH33t73nsBcHS0wtp/PyMIViHLNItZrE8V9zM=
 github.com/twmb/franz-go/pkg/kmsg v1.15.1/go.mod h1:sGkGxKexpRLBThFHJLjjywcyfkK09qB/g+X+wFWZQ/A=
+github.com/xavidop/hikyaku v1.5.0 h1:3j+msNEqwZcGF4Qfnc5pYOA8mU4AZGb8bJFyrXvvrRA=
+github.com/xavidop/hikyaku v1.5.0/go.mod h1:DjmRXC0fpov3nMYwJAD5T04E16zKxHPyaPGYzjnLBj4=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
