@@ -4,6 +4,40 @@ entries:
   - annotations:
       artifacthub.io/license: MIT
     apiVersion: v2
+    appVersion: 1.5.0
+    created: "2026-11-12T21:49:01.678588852Z"
+    description: 'hikyaku 飛脚, a YAML-configured message relay: it reads from one or
+      more endpoints and delivers to one or more endpoints over almost any protocol,
+      with an AI router and retries and fallbacks at every layer.'
+    digest: c4cb8a0b07bb077e93e64634335f9f5b3e27d388f4fbcb6272f38c118dbef092
+    home: https://xavidop.github.io/hikyaku/
+    icon: https://raw.githubusercontent.com/xavidop/hikyaku/main/assets/logo.png
+    keywords:
+    - hikyaku
+    - relay
+    - message-relay
+    - webhooks
+    - websocket
+    - sse
+    - fan-out
+    - ai-router
+    - genkit
+    - retries
+    kubeVersion: '>=1.25.0-0'
+    maintainers:
+    - email: xavi_tb@hotmail.com
+      name: Xavier Portilla Edo
+      url: https://github.com/xavidop
+    name: hikyaku
+    sources:
+    - https://github.com/xavidop/hikyaku
+    type: application
+    urls:
+    - https://github.com/xavidop/hikyaku/releases/download/v1.5.0/hikyaku-1.5.0.tgz
+    version: 1.5.0
+  - annotations:
+      artifacthub.io/license: MIT
+    apiVersion: v2
     appVersion: 1.4.0
     created: "2026-11-12T12:32:54.485851035Z"
     description: 'hikyaku 飛脚, a YAML-configured message relay: it reads from one or
@@ -205,4 +239,4 @@ entries:
     urls:
     - https://github.com/xavidop/hikyaku/releases/download/v1.0.0/hikyaku-1.0.0.tgz
     version: 1.0.0
-generated: "2026-11-12T12:32:54.485870373Z"
+generated: "2026-11-12T21:49:01.6786042Z"
