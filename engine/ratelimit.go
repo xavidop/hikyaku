@@ -44,7 +44,7 @@ func (e *Engine) throttle(ctx context.Context, d *destination) error {
 	}
 	r := d.limiter.Reserve()
 	wait := r.Delay()
-	if wait <= 0 {
+	if wait <= 0 || e.opts.NoWait {
 		return nil
 	}
 	if dl, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(dl) {

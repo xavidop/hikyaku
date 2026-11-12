@@ -49,6 +49,16 @@ type Options struct {
 	Routers map[string]plugin.Router
 	// WrapSink decorates the sink of a destination or member (hikyaku chaos).
 	WrapSink func(destination string, s plugin.Sink) plugin.Sink
+	// Sinks replaces the sinks the spec asks for (hikyaku test): when it
+	// returns a sink for a destination's endpoint, a group member or a
+	// dead-letter hop (destination DeadLetterName), that one is used and the
+	// real one is never built, so nothing connects anywhere. Nil builds
+	// the real sink.
+	Sinks func(destination string, spec plugin.Spec) plugin.Sink
+	// NoWait never waits (hikyaku test): no backoff between attempts, no
+	// deliver_after or deliver_at hold, no wait for a rate limit, and a
+	// batch closes at once.
+	NoWait bool
 	// NoSources builds the engine without its sources: for send, route and
 	// dlq replay, which inject messages themselves.
 	NoSources bool
@@ -320,7 +330,12 @@ func (e *Engine) newEndpoint(ctx context.Context, dest, name string, ep config.E
 	ps := plugin.Spec{Name: name, Kind: ep.Type, Options: ep.Options, Config: &spec, Env: e.pluginEnv()}
 	var sink plugin.Sink
 	var err error
-	if ep.Type == "model" {
+	if e.opts.Sinks != nil {
+		sink = e.opts.Sinks(dest, ps)
+	}
+	if sink != nil {
+		// A stand-in: the real sink is not built.
+	} else if ep.Type == "model" {
 		ms, ok := e.opts.AI.(router.ModelSinks)
 		if !ok {
 			return nil, fmt.Errorf("destination %s: model destinations need the AI module (cmd/hikyaku links the llm module)", name)

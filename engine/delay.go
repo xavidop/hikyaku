@@ -73,7 +73,7 @@ func (e *Engine) hold(ctx context.Context, d *destination, env *envelope.Envelop
 		return fail(plugin.Wrap(plugin.Permanent, []string{TagDeliverAt}, fmt.Errorf("destination %s: %w", d.name, err)))
 	}
 	wait := due.Sub(e.now())
-	if wait <= 0 {
+	if wait <= 0 || e.opts.NoWait {
 		return rep, true
 	}
 	if e.m != nil {
