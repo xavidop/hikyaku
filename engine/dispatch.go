@@ -45,6 +45,8 @@ type RouteReport struct {
 	Error        string           `json:"error,omitempty"`
 	DeadLettered bool             `json:"dead_lettered,omitempty"`
 	Deliveries   []DeliveryReport `json:"deliveries,omitempty"`
+	// Shadowed are the shadow destinations a copy was sent to, on the side.
+	Shadowed []string `json:"shadowed,omitempty"`
 	// Plans are the fallback chains a dry run would walk.
 	Plans []Plan `json:"plans,omitempty"`
 }
@@ -269,7 +271,9 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 	if e.m != nil {
 		e.m.Routed.WithLabelValues(r.name, dec.Router).Inc()
 	}
-	rr.Deliveries = e.deliverAll(ctx, dec.Destinations, renv)
+	to, shadows := e.splitShadows(dec.Destinations)
+	rr.Shadowed = e.shadows.send(shadows, renv)
+	rr.Deliveries = e.deliverAll(ctx, to, renv)
 
 	var dl []dlqItem
 	for _, d := range rr.Deliveries {
@@ -416,6 +420,9 @@ type Plan struct {
 	Chain       []string          `json:"chain"`
 	Breakers    map[string]string `json:"breakers"`
 	Required    bool              `json:"required"`
+	// Shadow is set for a shadow destination, with the share it gets.
+	Shadow bool    `json:"shadow,omitempty"`
+	Sample float64 `json:"sample,omitempty"`
 }
 
 func (e *Engine) planFor(name string) Plan {
@@ -423,6 +430,9 @@ func (e *Engine) planFor(name string) Plan {
 	for i, d := range e.chainOf(name) {
 		if i == 0 {
 			p.Required = d.required
+			if d.shadow {
+				p.Shadow, p.Sample = true, d.sample
+			}
 		}
 		p.Chain = append(p.Chain, d.name)
 		for _, ep := range d.endpoints {

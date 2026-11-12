@@ -87,6 +87,7 @@ type Engine struct {
 	sem         chan struct{}
 	stopping    chan struct{} // closed when Run shuts down: held messages stop waiting
 	notifier    *notifier     // nil without notify rules
+	shadows     *shadower
 	inflight    sync.WaitGroup
 	probeClient *http.Client
 
@@ -132,6 +133,7 @@ func New(ctx context.Context, spec *config.Spec, o Options) (*Engine, error) {
 		probeClient: &http.Client{Timeout: 5 * time.Second},
 	}
 	e.notifier = newNotifier(e, spec.Notify)
+	e.shadows = newShadower(e)
 	if err := e.buildStores(ctx); err != nil {
 		e.closeStores()
 		return nil, err
@@ -258,6 +260,8 @@ func (e *Engine) buildDestinations(ctx context.Context) error {
 			idempotent: ds.Idempotent,
 			idemHeader: ds.IdempotencyHeaderName(),
 			fallback:   ds.Fallback,
+			shadow:     ds.Shadow,
+			sample:     ds.SampleRate(),
 		}
 		if ds.Batch != nil {
 			e.batchers[ds.Name] = newBatcher(e, ds.Name, ds.Batch)
@@ -604,7 +608,8 @@ func (e *Engine) Close(ctx context.Context) {
 	e.closeOnce.Do(func() {
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		e.notifier.stop() // while the sinks are still open
+		e.shadows.stop(5 * time.Second) // while the sinks are still open
+		e.notifier.stop()
 		for _, d := range e.dests {
 			for _, ep := range d.endpoints {
 				if err := ep.sink.Close(cctx); err != nil {

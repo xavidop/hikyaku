@@ -188,7 +188,7 @@ type Source struct {
 
 	SASL            *SASL    `yaml:"sasl,omitempty" jsonschema_description:"kafka: SASL authentication."`
 	Username        string   `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: user name (mqtt, amqp and redis also take it in the URL; this field wins)."`
-	Password        string   `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: password; use {{secrets.X}}."`
+	Password        string   `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."`
 	Token           string   `yaml:"token,omitempty" jsonschema_description:"nats: authentication token; use {{secrets.X}}."`
 	CredsFile       string   `yaml:"creds_file,omitempty" jsonschema_description:"nats: a .creds file (JWT and NKey seed)."`
 	Subject         string   `yaml:"subject,omitempty" jsonschema_description:"nats: subject (wildcards * and > allowed); jetstream: filter subject of the consumer."`
@@ -227,6 +227,9 @@ type Source struct {
 	Azure             *Azure   `yaml:"azure,omitempty" jsonschema_description:"servicebus, eventhubs: connection string or namespace and credentials."`
 
 	Models []string `yaml:"models,omitempty" jsonschema_description:"openai: the model names /v1/models lists and clients may ask for (default [hikyaku]); route on msg.json.model."`
+
+	Cron     string `yaml:"cron,omitempty" jsonschema_description:"schedule: when to emit a message, as a five-field cron expression (minute hour day-of-month month day-of-week) or @hourly, @daily, @weekly, @monthly, @yearly. Set cron or interval."`
+	Timezone string `yaml:"timezone,omitempty" jsonschema_description:"schedule: the time zone cron is read in, such as Europe/Madrid (default UTC)."`
 
 	Ordering *Ordering `yaml:"ordering,omitempty" jsonschema_description:"Deliver messages with the same key one at a time, in arrival order."`
 
@@ -364,6 +367,9 @@ type Endpoint struct {
 	Body    string            `yaml:"body,omitempty" jsonschema_description:"Per-message template of the outgoing body (default: the message body)."`
 	TLS     *TLS              `yaml:"tls,omitempty" jsonschema_description:"Client TLS, DTLS for udp (mTLS with cert_file and key_file)."`
 	Sign    *Sign             `yaml:"sign,omitempty" jsonschema_description:"http: sign every request with an HMAC of its body, so the receiver can check who sent it."`
+	From    string            `yaml:"from,omitempty" jsonschema_description:"smtp: the sender, as an address or as Name <address>."`
+	To      []string          `yaml:"to,omitempty" jsonschema_description:"smtp: the recipients. Each entry is a per-message template that renders one address, or several separated by commas."`
+	OAuth2  *OAuth2           `yaml:"oauth2,omitempty" jsonschema_description:"http: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token."`
 	Path    string            `yaml:"path,omitempty" jsonschema_description:"file: the file appended to; sse: the stream path (default /)."`
 	Listen  string            `yaml:"listen,omitempty" jsonschema_description:"sse: address the event stream is served on."`
 	Format  string            `yaml:"format,omitempty" jsonschema:"enum=envelope,enum=body" jsonschema_description:"file/stdout/stderr: write each message as an envelope line (default) or its body."`
@@ -377,13 +383,13 @@ type Endpoint struct {
 	Key     string            `yaml:"key,omitempty" jsonschema_description:"Per-message template of the message key. kafka: record key (partitioning); pubsub: ordering key; eventhubs: partition key; s3, gcs: object key (default <relay>/<date>/<id>.json, or .ndjson for a batch)."`
 
 	SASL            *SASL  `yaml:"sasl,omitempty" jsonschema_description:"kafka: SASL authentication."`
-	Username        string `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: user name."`
-	Password        string `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp: password; use {{secrets.X}}."`
+	Username        string `yaml:"username,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: user name."`
+	Password        string `yaml:"password,omitempty" jsonschema_description:"mqtt, nats, redis, amqp, smtp: password; use {{secrets.X}}."`
 	Token           string `yaml:"token,omitempty" jsonschema_description:"nats: authentication token; use {{secrets.X}}."`
 	CredsFile       string `yaml:"creds_file,omitempty" jsonschema_description:"nats: a .creds file (JWT and NKey seed)."`
-	Subject         string `yaml:"subject,omitempty" jsonschema_description:"Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject."`
+	Subject         string `yaml:"subject,omitempty" jsonschema_description:"Per-message template of the subject. nats, jetstream: the subject published to; sns: the message subject; smtp: the email's subject."`
 	Acks            string `yaml:"acks,omitempty" jsonschema:"enum=all,enum=leader,enum=none" jsonschema_description:"kafka: acknowledgements a produce waits for (default all, with the idempotent producer)."`
-	Compression     string `yaml:"compression,omitempty" jsonschema:"enum=none,enum=gzip,enum=snappy,enum=lz4,enum=zstd" jsonschema_description:"kafka: batch compression (default none)."`
+	Compression     string `yaml:"compression,omitempty" jsonschema:"enum=none,enum=gzip,enum=snappy,enum=lz4,enum=zstd" jsonschema_description:"kafka: batch compression (default none). http: gzip compresses the request body and sets Content-Encoding (default none)."`
 	QoS             *int   `yaml:"qos,omitempty" jsonschema:"enum=0,enum=1,enum=2" jsonschema_description:"mqtt: publish QoS (default 1)."`
 	Retain          bool   `yaml:"retain,omitempty" jsonschema_description:"mqtt: publish retained messages."`
 	ClientID        string `yaml:"client_id,omitempty" jsonschema_description:"mqtt: client identifier; kafka: client.id. Default hikyaku-<relay>-<destination>."`
@@ -458,6 +464,9 @@ type Destination struct {
 	DeliverAfter Duration   `yaml:"deliver_after,omitempty" jsonschema_description:"Hold each message of a route this long before delivering it here, counted from when it was received."`
 	DeliverAt    string     `yaml:"deliver_at,omitempty" jsonschema_description:"Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once."`
 	RateLimit    *RateLimit `yaml:"rate_limit,omitempty" jsonschema_description:"Send at most this many requests per second; the others wait their turn."`
+
+	Shadow bool     `yaml:"shadow,omitempty" jsonschema_description:"A shadow destination gets a copy of what the routes send it, on the side: its failures never hold up, fail or dead-letter a message. For trying a new consumer against real traffic."`
+	Sample *float64 `yaml:"sample,omitempty" jsonschema:"exclusiveMinimum=0,maximum=1" jsonschema_description:"shadow: the share of messages copied, from above 0 to 1 (0.05 is 5%; default 1, every message)."`
 
 	Batch *Batch `yaml:"batch,omitempty" jsonschema_description:"Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."`
 }
@@ -542,6 +551,19 @@ type Sign struct {
 	Prefix          string `yaml:"prefix,omitempty" jsonschema_description:"Text put before the digest, such as sha256=."`
 	Encoding        string `yaml:"encoding,omitempty" jsonschema:"enum=hex,enum=base64" jsonschema_description:"Digest encoding (default hex)."`
 	TimestampHeader string `yaml:"timestamp_header,omitempty" jsonschema_description:"When set, this header carries the send time in Unix seconds, and the signature covers <timestamp>.<body>, so a receiver can refuse an old request."`
+}
+
+// OAuth2 is the client credentials grant of an http destination: hikyaku
+// asks token_url for an access token, keeps it until shortly before it
+// expires, and sends it as a bearer token.
+type OAuth2 struct {
+	TokenURL     string            `yaml:"token_url" jsonschema:"required" jsonschema_description:"The authorization server's token endpoint."`
+	ClientID     string            `yaml:"client_id" jsonschema:"required" jsonschema_description:"Client ID."`
+	ClientSecret string            `yaml:"client_secret" jsonschema:"required" jsonschema_description:"Client secret, usually {{secrets.NAME}}."`
+	Scopes       []string          `yaml:"scopes,omitempty" jsonschema_description:"Scopes to ask for."`
+	Audience     string            `yaml:"audience,omitempty" jsonschema_description:"The audience parameter, for servers that need one (Auth0)."`
+	Params       map[string]string `yaml:"params,omitempty" jsonschema_description:"More form parameters for the token request, such as resource."`
+	ClientAuth   string            `yaml:"client_auth,omitempty" jsonschema:"enum=basic,enum=body" jsonschema_description:"Where the client ID and secret go: basic (HTTP Basic, the default) or body (form fields)."`
 }
 
 // OnInvalid is what a route does with a body its validate step refused.

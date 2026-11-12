@@ -32,6 +32,7 @@ type Metrics struct {
 	BatchSize        *prometheus.HistogramVec // hikyaku_batch_size{destination}
 	ModelTokens      *prometheus.CounterVec   // hikyaku_model_tokens_total{destination,type}
 	Dropped          *prometheus.CounterVec   // hikyaku_delivery_dropped_total{destination}
+	Shadow           *prometheus.CounterVec   // hikyaku_shadow_total{destination,outcome}
 	Fallback         *prometheus.CounterVec   // hikyaku_fallback_total{from,to,reason}
 	BreakerState     *prometheus.GaugeVec     // hikyaku_breaker_state{endpoint}: 0 closed, 1 half-open, 2 open
 	BudgetRemaining  *prometheus.GaugeVec     // hikyaku_retry_budget_remaining{destination}
@@ -79,6 +80,7 @@ func New() *Metrics {
 		BatchSize:        f.histogram("hikyaku_batch_size", "Messages per delivered batch (destination batch:).", []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000}, "destination"),
 		ModelTokens:      f.counter("hikyaku_model_tokens_total", "Tokens used by model destinations (the LLM-proxy mode), by type: input or output.", "destination", "type"),
 		Dropped:          f.counter("hikyaku_delivery_dropped_total", "Messages a best-effort (required: false) destination failed to take.", "destination"),
+		Shadow:           f.counter("hikyaku_shadow_total", "Copies sent to a shadow destination, by outcome: delivered, failed, or dropped (too many in flight).", "destination", "outcome"),
 		Fallback:         f.counter("hikyaku_fallback_total", "Destination fallback hops, by reason (exhausted, permanent, breaker_open, budget, deadline).", "from", "to", "reason"),
 		BreakerState:     f.gaugeVec("hikyaku_breaker_state", "Circuit breaker state per endpoint: 0 closed, 1 half-open, 2 open.", "endpoint"),
 		BudgetRemaining:  f.gaugeVec("hikyaku_retry_budget_remaining", "Retries the retry budget still allows in its window.", "destination"),

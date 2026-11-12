@@ -229,6 +229,16 @@ func (l *Listener) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, reply{Status: "unauthorized"})
 		return
 	}
+	// Decoded after the checks above: a sender signs the bytes it sent.
+	body, decoded, err := decodeBody(r.Header.Get("Content-Encoding"), body, l.maxBody)
+	switch {
+	case errors.Is(err, errTooLarge):
+		writeJSON(w, http.StatusRequestEntityTooLarge, reply{Status: "too_large"})
+		return
+	case err != nil:
+		writeJSON(w, http.StatusBadRequest, reply{Status: "bad_request", Error: err.Error()})
+		return
+	}
 	env := envelope.New(l.name, l.kind, body)
 	if key := r.Header.Get("Idempotency-Key"); key != "" && len(key) <= 256 {
 		env.ID = key
@@ -240,6 +250,11 @@ func (l *Listener) serve(w http.ResponseWriter, r *http.Request) {
 		env.Headers[k] = slices.Clone(v)
 	}
 	l.auth.StripCredentials(env.Headers)
+	if decoded {
+		// The message holds the decoded body now.
+		delete(env.Headers, "Content-Encoding")
+		delete(env.Headers, "Content-Length")
+	}
 	env.Attributes["http.method"] = r.Method
 	env.Attributes["http.path"] = r.URL.Path
 	if q := l.auth.StripQuery(r.URL.RawQuery); q != "" {

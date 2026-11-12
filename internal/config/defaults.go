@@ -213,7 +213,17 @@ func ResolvePolicy(defaults, own Policy) Policy {
 }
 
 // IsRequired reports whether a destination must succeed before the ack.
-func (d Destination) IsRequired() bool { return Bool(d.Required, true) }
+// A shadow destination never is.
+func (d Destination) IsRequired() bool { return !d.Shadow && Bool(d.Required, true) }
+
+// SampleRate is the share of a shadow destination's messages that is
+// copied to it: 1 when sample is unset.
+func (d Destination) SampleRate() float64 {
+	if d.Sample == nil {
+		return 1
+	}
+	return *d.Sample
+}
 
 // IdempotencyHeaderName is the header carrying the idempotency key.
 func (d Destination) IdempotencyHeaderName() string {
@@ -241,7 +251,7 @@ func DefaultMode(s Source) string {
 		return "listen"
 	case "s3", "gcs":
 		return "poll"
-	case "stdin", "file":
+	case "stdin", "file", "schedule":
 		return ""
 	}
 	return "subscribe"

@@ -5,6 +5,8 @@ import (
 	"github.com/xavidop/hikyaku/protocols/file"
 	httpproto "github.com/xavidop/hikyaku/protocols/http"
 	"github.com/xavidop/hikyaku/protocols/openai"
+	"github.com/xavidop/hikyaku/protocols/schedule"
+	smtpproto "github.com/xavidop/hikyaku/protocols/smtp"
 	tcpproto "github.com/xavidop/hikyaku/protocols/tcp"
 )
 
@@ -17,6 +19,8 @@ func registerBuiltins() {
 	openai.Register()
 	fault.Register()
 	tcpproto.Register()
+	schedule.Register()
+	smtpproto.Register()
 	registerWeb()
 	registerFull()
 }

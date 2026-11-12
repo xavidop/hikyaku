@@ -3,11 +3,15 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/xavidop/hikyaku/internal/cron"
 )
 
 // The protocol matrix (design §4): source types with their modes, sink
@@ -18,7 +22,7 @@ var (
 		"http": {"listen", "poll"}, "https": {"listen", "poll"},
 		"ws": {"listen", "subscribe"}, "wss": {"listen", "subscribe"},
 		"sse":   {"listen", "subscribe"},
-		"stdin": {""}, "file": {""},
+		"stdin": {""}, "file": {""}, "schedule": {""},
 		"grpc": {"listen", "subscribe"}, "tcp": {"listen"}, "udp": {"listen"},
 		"kafka": {"subscribe"}, "nats": {"subscribe"}, "jetstream": {"subscribe"}, "mqtt": {"subscribe"},
 		"amqp": {"subscribe"}, "redis": {"subscribe"},
@@ -30,7 +34,7 @@ var (
 	sinkTypes = []string{
 		"http", "https", "ws", "wss", "sse", "stdout", "stderr", "file", "fault", "group",
 		"grpc", "tcp", "udp", "kafka", "nats", "jetstream", "mqtt", "amqp", "redis",
-		"sqs", "sns", "eventbridge", "pubsub", "servicebus", "eventhubs", "s3", "gcs", "model",
+		"sqs", "sns", "eventbridge", "pubsub", "servicebus", "eventhubs", "s3", "gcs", "model", "smtp",
 	}
 	fullOnly = map[string]bool{
 		"grpc": true, "kafka": true, "nats": true, "jetstream": true, "mqtt": true, "amqp": true, "redis": true,
@@ -347,6 +351,7 @@ func (v *validator) sources() map[string]bool {
 		if src.Type == "file" && src.Path == "" {
 			v.add(p+".path", "is required for a file source")
 		}
+		v.schedule(p, src)
 		v.sourceProtocol(p, *src)
 		if src.Mode != "listen" {
 			if src.Auth != nil {
@@ -415,6 +420,88 @@ func (v *validator) sources() map[string]bool {
 // WebhookProviders are the senders auth.webhook can verify.
 var WebhookProviders = []string{"github", "stripe", "slack", "shopify", "twilio"}
 
+// smtp checks an email destination.
+func (v *validator) smtp(p string, e Endpoint) {
+	if e.Type != "smtp" {
+		if e.From != "" {
+			v.add(p+".from", "applies to smtp destinations only")
+		}
+		if len(e.To) > 0 {
+			v.add(p+".to", "applies to smtp destinations only")
+		}
+		return
+	}
+	u, err := url.Parse(e.URL)
+	switch {
+	case e.URL == "":
+		v.add(p+".url", "is required: smtp://host, smtps://host or smtp+plain://host")
+	case err != nil || u.Hostname() == "" || !slices.Contains([]string{"smtp", "smtps", "smtp+plain"}, u.Scheme):
+		v.add(p+".url", "must be smtp://host (STARTTLS), smtps://host (TLS) or smtp+plain://host (no TLS)")
+	case u.User != nil:
+		v.add(p+".url", "put the user name and password in username and password, not in the url")
+	case u.Scheme == "smtp+plain" && e.TLS != nil:
+		v.add(p+".tls", "does not go with smtp+plain://")
+	}
+	if (e.Username == "") != (e.Password == "") {
+		v.add(p, "username and password go together")
+	}
+	if e.From == "" {
+		v.add(p+".from", "is required")
+	} else if _, err := mail.ParseAddress(e.From); err != nil {
+		v.add(p+".from", "%q is not an email address", e.From)
+	}
+	if len(e.To) == 0 {
+		v.add(p+".to", "needs at least one address")
+	}
+	for i, t := range e.To {
+		if strings.Contains(t, "{{") {
+			continue // a per-message template: checked when it renders
+		}
+		if _, err := mail.ParseAddressList(t); err != nil {
+			v.add(fmt.Sprintf("%s.to[%d]", p, i), "%q is not an email address", t)
+		}
+	}
+}
+
+// MinScheduleInterval is the shortest interval of a schedule source.
+const MinScheduleInterval = time.Second
+
+// schedule checks a schedule source: a cron expression or an interval.
+func (v *validator) schedule(p string, src *Source) {
+	if src.Type != "schedule" {
+		if src.Cron != "" {
+			v.add(p+".cron", "applies to schedule sources only")
+		}
+		if src.Timezone != "" {
+			v.add(p+".timezone", "applies to schedule sources only")
+		}
+		return
+	}
+	switch {
+	case src.Cron == "" && src.Interval == 0:
+		v.add(p, "a schedule source needs cron or interval")
+	case src.Cron != "" && src.Interval != 0:
+		v.add(p, "set cron or interval, not both")
+	case src.Cron != "":
+		if _, err := cron.Parse(src.Cron); err != nil {
+			v.add(p+".cron", "%v", err)
+		}
+	case src.Interval.Std() < MinScheduleInterval:
+		v.add(p+".interval", "must be at least %s", MinScheduleInterval)
+	}
+	if src.Timezone != "" {
+		if src.Cron == "" {
+			v.add(p+".timezone", "applies with cron (an interval has no time zone)")
+		}
+		if _, err := time.LoadLocation(src.Timezone); err != nil {
+			v.add(p+".timezone", "%q is not a time zone name (such as Europe/Madrid)", src.Timezone)
+		}
+	}
+	if src.Dedupe != nil {
+		v.add(p+".dedupe", "does not apply to a schedule source")
+	}
+}
+
 func (v *validator) webhookAuth(p, sourceType string, w *WebhookAuth) {
 	if sourceType != "http" {
 		v.add(p, "applies to http sources only: it signs the request body")
@@ -474,6 +561,7 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 		if d.DeliverAfter < 0 {
 			v.add(p+".deliver_after", "must not be negative")
 		}
+		v.shadow(p, d)
 		if rl := d.RateLimit; rl != nil {
 			if rl.PerSecond <= 0 {
 				v.add(p+".rate_limit.per_second", "must be above 0")
@@ -496,6 +584,53 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 		v.endpoint(p, d.Endpoint)
 	}
 	return names
+}
+
+// shadow checks a shadow destination: it is never required, it is nobody's
+// fallback, and nothing waits for it.
+func (v *validator) shadow(p string, d *Destination) {
+	if d.Sample != nil {
+		if !d.Shadow {
+			v.add(p+".sample", "applies to a shadow destination (shadow: true)")
+		}
+		if *d.Sample <= 0 || *d.Sample > 1 {
+			v.add(p+".sample", "must be above 0 and at most 1 (0.05 is 5%%)")
+		}
+	}
+	if !d.Shadow {
+		return
+	}
+	if d.Required != nil && *d.Required {
+		v.add(p+".required", "a shadow destination is never required")
+	}
+	if d.DeliverAfter != 0 || d.DeliverAt != "" {
+		v.add(p+".shadow", "does not go with deliver_after or deliver_at")
+	}
+	for i := range v.s.Destinations {
+		o := &v.s.Destinations[i]
+		if j := slices.Index(o.Fallback, d.Name); j >= 0 && o.Name != d.Name {
+			v.add(fmt.Sprintf("destination %q.fallback[%d]", o.Name, j), "%q is a shadow destination: it cannot be a fallback", d.Name)
+		}
+	}
+	for i := range v.s.Sources {
+		src := &v.s.Sources[i]
+		if src.Respond != nil && src.Respond.From == d.Name {
+			v.add(fmt.Sprintf("source %q.respond.from", src.Name), "%q is a shadow destination: nothing waits for its reply", d.Name)
+		}
+	}
+	if dl := v.s.DeadLetter; dl != nil && slices.Contains(dl.Fallback, d.Name) {
+		v.add("dead_letter.fallback", "%q is a shadow destination", d.Name)
+	}
+	for i := range v.s.Routes {
+		r := &v.s.Routes[i]
+		if len(r.To) > 0 && !slices.ContainsFunc(r.To, func(n string) bool { return !v.isShadow(n) }) {
+			v.add(fmt.Sprintf("route %q.to", r.Name), "names shadow destinations only: a route needs a destination that is not a shadow")
+		}
+	}
+}
+
+func (v *validator) isShadow(name string) bool {
+	return slices.ContainsFunc(v.s.Destinations, func(d Destination) bool { return d.Name == name && d.Shadow })
 }
 
 func (v *validator) group(p string, d *Destination) {
@@ -554,6 +689,39 @@ func (v *validator) endpoint(p string, e Endpoint) {
 	}
 	if len(e.Options) > 0 {
 		v.add(p+".options", "applies to plugin types: %s destinations take their settings as keys of their own", e.Type)
+	}
+	if (e.Type == "http" || e.Type == "https") && e.Compression != "" && e.Compression != "gzip" && e.Compression != "none" {
+		v.add(p+".compression", "must be gzip or none for an http destination")
+	}
+	v.smtp(p, e)
+	if o := e.OAuth2; o != nil {
+		if e.Type != "http" && e.Type != "https" {
+			v.add(p+".oauth2", "applies to http and https destinations")
+		}
+		if o.TokenURL == "" {
+			v.add(p+".oauth2.token_url", "is required")
+		} else if u, err := url.Parse(o.TokenURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			v.add(p+".oauth2.token_url", "must be an http or https URL")
+		}
+		if o.ClientID == "" {
+			v.add(p+".oauth2.client_id", "is required")
+		}
+		if o.ClientSecret == "" {
+			v.add(p+".oauth2.client_secret", "is required")
+		}
+		if o.ClientAuth != "" && o.ClientAuth != "basic" && o.ClientAuth != "body" {
+			v.add(p+".oauth2.client_auth", "must be basic or body")
+		}
+		for k := range o.Params {
+			if k == "grant_type" || k == "client_id" || k == "client_secret" {
+				v.add(p+".oauth2.params."+k, "is set by hikyaku")
+			}
+		}
+		for k := range e.Headers {
+			if strings.EqualFold(k, "Authorization") {
+				v.add(p+".headers."+k, "does not go with oauth2, which sets this header")
+			}
+		}
 	}
 	if sg := e.Sign; sg != nil {
 		if e.Type != "http" && e.Type != "https" {

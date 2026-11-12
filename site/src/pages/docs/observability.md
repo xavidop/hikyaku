@@ -141,6 +141,7 @@ This is every metric hikyaku exports. They sit next to the Go runtime (`go_*`) a
 | `hikyaku_delivery_duration_seconds` | `destination`, `endpoint` | the duration of one delivery attempt (histogram) |
 | `hikyaku_batch_size` | `destination` | messages per delivered batch, for destinations with `batch:` (histogram) |
 | `hikyaku_delivery_dropped_total` | `destination` | messages a best-effort (`required: false`) destination failed to take |
+| `hikyaku_shadow_total` | `destination`, `outcome` | copies sent to a [shadow destination](/docs/delivery/#shadow-traffic): `delivered`, `failed` or `dropped` |
 | `hikyaku_fallback_total` | `from`, `to`, `reason` | destination fallback hops; `reason` is `exhausted`, `permanent`, `breaker_open`, `budget` or `deadline` |
 | `hikyaku_breaker_state` | `endpoint` | each circuit breaker: `0` closed, `1` half-open, `2` open (gauge) |
 | `hikyaku_retry_budget_remaining` | `destination` | the retries the retry budget still allows in its window (gauge) |

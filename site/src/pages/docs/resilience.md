@@ -322,7 +322,7 @@ notify:
 | Key | Meaning |
 |---|---|
 | `on` | The events that alert: `dead_letter` (a message was stored in the dead-letter queue), `circuit_open` (a circuit breaker opened) and `circuit_closed` (it closed again). The default is `dead_letter` and `circuit_open`. |
-| `to` | The destinations that get the alert. Any destination works: a chat webhook, an on-call service, a queue. |
+| `to` | The destinations that get the alert. Any destination works: a chat webhook, an [email](/docs/protocols/#email-smtp), an on-call service, a queue. |
 | `every` | At most one alert in this time for the same event on the same destination (default `1m`). |
 
 The alert is a JSON message. Shape it for the receiver with the destination's

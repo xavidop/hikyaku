@@ -32,6 +32,7 @@ The table says what each protocol can do, and in which source modes.
 | `sse` | listen, subscribe | yes | `Last-Event-ID` resume, a replay buffer on the destination side |
 | `stdin` / `file` | one message per line | | NDJSON; local development and piping |
 | `stdout` / `stderr` / `file` | | yes | one envelope, or one body, per line |
+| `schedule` | a message per tick | | a cron expression or an interval, for scheduled jobs |
 | `grpc` | listen, subscribe | yes | the built-in `hikyaku.relay.v1.Relay`, or any service from a descriptor set or server reflection |
 | `tcp` / `udp` | listen | yes | newline, length-prefix or raw framing; TLS and mTLS on tcp, DTLS on udp |
 | `kafka` | subscribe | yes | consumer groups, commits past the settled prefix, SASL and TLS, the idempotent producer |
@@ -43,6 +44,7 @@ The table says what each protocol can do, and in which source modes.
 | `s3` / `gcs` | poll | yes | an object per message, or per batch as NDJSON |
 | `pubsub` | subscribe | yes | Google Cloud Pub/Sub, ordering keys |
 | `servicebus` / `eventhubs` | subscribe | yes | sessions and lock renewal; Event Hubs checkpoints and leases in a store |
+| `smtp` | | yes | one email per message; STARTTLS or TLS, `PLAIN` and `LOGIN` sign-in |
 | `openai` | listen | | the [LLM proxy](/docs/llm-proxy/)'s OpenAI-compatible endpoint |
 | `model` | | yes | a Genkit model answering a chat request ([LLM proxy](/docs/llm-proxy/)) |
 | `fault` | | yes | injects failures, latency and status codes, for tests |
@@ -50,7 +52,7 @@ The table says what each protocol can do, and in which source modes.
 
 gRPC, the brokers and the clouds are in the full build only. `hikyaku-lite` leaves their SDKs
 out, and [out-of-process plugins](/docs/plugins/) with them. It keeps http, ws, sse, tcp, udp,
-the files, the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
+the files, the schedule source, email (smtp), the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
 others, but does not run it. Each module's README, linked from its section below, lists every
 key, the attributes it sets and its error tags.
 
@@ -175,6 +177,10 @@ attributes `http.method`, `http.path`, `http.query` (when the URL has a query), 
 `auth.api_key.header` are dropped before the message is built. So no destination, file, DLQ
 record or `hikyaku tail` sees them.
 
+A request sent with `Content-Encoding: gzip` is decoded, with no setting: the message holds the
+decoded body. `max_body_bytes` applies to the decoded body too, so a small request cannot expand
+into a huge message (it gets a `413`). Signatures are checked on the bytes as they were sent.
+
 ### Poll
 
 In poll mode, hikyaku is the client, and it fetches `url` on a schedule. Use it for an API that
@@ -246,6 +252,14 @@ receiver can tell a retry from a new message. A reply with an `X-Hikyaku-Reroute
 header records a correction for [history-aware routing](/docs/history/#the-feedback-loop). A URL
 whose host is a template is checked against [`egress`](/docs/security/#ssrf-guard), and so is
 every redirect it follows.
+
+With [`oauth2`](/docs/security/#oauth-20-for-deliveries), the destination fetches an OAuth 2.0
+access token with its client ID and secret, and sends it as a bearer token.
+
+`compression: gzip` compresses every request body and sets `Content-Encoding: gzip`. It pays off
+for large bodies and [batches](/docs/delivery/#batching). The receiver must accept gzip requests.
+With [`sign`](/docs/security/#signed-deliveries), the signature covers the compressed bytes.
+
 [Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/http).
 
 ## WebSocket (ws, wss)
@@ -357,6 +371,71 @@ cat events.ndjson | hikyaku run -f pipe.yaml
 ```
 
 [Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/file).
+
+## schedule
+
+A schedule source emits a message when a cron expression matches, or every interval. With a
+route and a destination, that is a scheduled job, with no other tool next to the relay.
+
+```yaml
+sources:
+  - name: morning-report
+    type: schedule
+    cron: "0 8 * * 1-5"          # every weekday at 08:00
+    timezone: Europe/Madrid       # default UTC
+    body: '{"report": "daily"}'  # default {}
+
+  - name: heartbeat
+    type: schedule
+    interval: 30s                 # at least 1s
+
+routes:
+  - name: report
+    from: [morning-report]
+    transforms:
+      - enrich: { url: "https://stats.internal/daily", into: stats }
+    to: [slack]
+```
+
+- `cron` has five fields: minute, hour, day of month, month and day of week. It takes ranges,
+  lists, steps and names (`mon-fri`, `jan`), and `@hourly`, `@daily`, `@weekly`, `@monthly` and
+  `@yearly`. There is no seconds field: use `interval` for that.
+- Each message has the ID `<source>@<tick>` and the attribute `schedule.time`.
+- A tick that passes while the relay is down is skipped, not made up for.
+- Every replica emits its own message. With `cron` the replicas use the same ID, so an
+  `idempotent` destination takes the message once.
+
+[Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/schedule).
+
+## Email (smtp)
+
+An smtp destination sends each message as one email. It is the plain way to get an
+[alert](/docs/resilience/#alerts) or a report to people.
+
+```yaml
+destinations:
+  - name: ops-mail
+    type: smtp
+    url: smtp://smtp.example.com          # STARTTLS, port 587
+    username: relay@example.com
+    password: "{{secrets.SMTP_PASSWORD}}"
+    from: "hikyaku <relay@example.com>"
+    to: [ops@example.com, "{{ .json.owner }}"]
+    subject: "Order {{ .json.id }} needs a look"
+    body: "Order {{ .json.id }} failed: {{ .json.reason }}"
+```
+
+- The URL picks the transport: `smtps://` is TLS from the first byte (port 465), `smtp://`
+  upgrades with STARTTLS and refuses a server without it (port 587), and `smtp+plain://` uses no
+  TLS, for a relay on the same host or network (port 25).
+- `to`, `subject`, `body` and `headers` are per-message templates. Without `body`, the email is
+  the message body.
+- A `4yz` reply from the server is retried. A `5yz` reply, such as a mailbox that does not
+  exist, is permanent. The tags are `smtp:<code>`.
+- A success means the server took the email, not that it reached an inbox.
+- There is no email source.
+
+[Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/smtp).
 
 ## fault
 

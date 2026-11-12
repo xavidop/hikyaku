@@ -175,3 +175,51 @@ What to know:
 - With [ordering](#ordering), a held message holds its key: the messages behind it wait too.
 - For a short delay on SQS, the queue's own `delay` (up to 15 minutes) does the same on the
   broker's side.
+
+## Shadow traffic
+
+```yaml
+destinations:
+  - name: crm
+    type: https
+    url: https://crm.internal/events
+
+  - name: crm-v2
+    type: https
+    url: https://crm-v2.internal/events
+    shadow: true
+    sample: 0.05          # 5% of the messages; default 1, every message
+
+routes:
+  - name: orders
+    from: [api]
+    to: [crm, crm-v2]
+```
+
+A shadow destination gets a copy of what the routes send it, on the side. Use it to try a new
+consumer, a new version of a service or a new model against real messages, before anything
+depends on it.
+
+- **Nothing waits for the copy.** The message is acknowledged, and the caller is answered, when
+  the other destinations have it.
+- **A failure changes nothing.** It is counted and logged. It is never dead-lettered, it does not
+  fail the message, and it does not make the relay not ready. The destination still retries and
+  falls back as its own settings say.
+- **`sample`** is the share of messages copied, from above 0 to 1. The message's ID decides, not
+  chance: a retried or replayed message gets the same answer.
+- **The copy is marked.** It carries the `shadow` attribute, and an http receiver sees the
+  header `X-Hikyaku-Shadow: true`. A receiver with side effects (an email, a charge) should check
+  it.
+- At most 256 copies are in flight at once. A shadow destination that cannot keep up loses
+  copies (counted as `dropped`); it never slows the relay down.
+- At shutdown, the copies in flight get five seconds to finish.
+
+This is not the AI router's [shadow mode](/docs/routing/#shadow-mode), which lets a router
+decide without delivering. A shadow destination does deliver, to a place where a failure costs
+nothing.
+
+`hikyaku_shadow_total{destination,outcome}` counts the copies: `delivered`, `failed` or `dropped`.
+
+A shadow destination is never `required`. It cannot be a fallback, the answer of `respond.from`,
+or the only destination of a route, and it does not go with `deliver_after`. `hikyaku send` and
+`dlq replay` to a shadow destination deliver to it like to any other.

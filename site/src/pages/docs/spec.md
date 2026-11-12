@@ -199,7 +199,8 @@ destinations:
 
 A destination is one endpoint or a `group` of `members`. `fallback`, `required`, `idempotent`,
 `transforms` and the whole delivery policy are set per destination.
-[Retries and fallbacks](/docs/resilience/) explains each one.
+[Retries and fallbacks](/docs/resilience/) explains each one. A destination with `shadow: true`
+gets a copy of the traffic on the side, see [shadow traffic](/docs/delivery/#shadow-traffic).
 
 ## Defaults
 

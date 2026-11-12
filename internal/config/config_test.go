@@ -667,3 +667,118 @@ routes:`, 1)
 	require.NoError(t, err)
 	assert.Equal(t, "null", l.Spec.Stores[0].Password)
 }
+
+func TestValidateHTTPCompression(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	_, err := loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", compression: gzip }`))
+	require.NoError(t, err)
+	_, err = loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", compression: zstd }`))
+	assert.Contains(t, errText(t, err), `destination "out".compression: must be gzip or none for an http destination`)
+}
+
+func TestValidateOAuth2(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	_, err := loadYAML(t, dest(`{ name: out, type: https, url: "https://x.test", oauth2: { token_url: "https://login.test/token", client_id: relay, client_secret: k, scopes: [a, b], audience: api, client_auth: body, params: { resource: crm } } }`))
+	require.NoError(t, err)
+	for d, want := range map[string]string{
+		`{ name: out, type: stdout, oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k } }`:                                                    `destination "out".oauth2: applies to http and https destinations`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: {} }`:                                                                                               `destination "out".oauth2.token_url: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "login.test/t", client_id: a, client_secret: k } }`:                                    `destination "out".oauth2.token_url: must be an http or https URL`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_secret: k } }`:                                              `destination "out".oauth2.client_id: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a } }`:                                                  `destination "out".oauth2.client_secret: is required`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k, client_auth: jwt } }`:              `destination "out".oauth2.client_auth: must be basic or body`,
+		`{ name: out, type: http, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k, params: { grant_type: x } } }`:     `oauth2.params.grant_type: is set by hikyaku`,
+		`{ name: out, type: http, url: "http://x.test", headers: { authorization: x }, oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k } }`: `headers.authorization: does not go with oauth2`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
+
+func TestValidateShadow(t *testing.T) {
+	with := func(d, route string) string {
+		s := strings.Replace(minimal, "  - { name: out, type: stdout }", "  - { name: out, type: stdout }\n  - "+d, 1)
+		return strings.Replace(s, "to: [out] }", route+" }", 1)
+	}
+	spec, err := loadYAML(t, with(`{ name: v2, type: stdout, shadow: true, sample: 0.05 }`, "to: [out, v2]"))
+	require.NoError(t, err)
+	assert.False(t, spec.Spec.Destinations[1].IsRequired())
+	assert.Equal(t, 0.05, spec.Spec.Destinations[1].SampleRate())
+	assert.Equal(t, 1.0, spec.Spec.Destinations[0].SampleRate())
+	for d, want := range map[string]string{
+		`{ name: v2, type: stdout, sample: 0.5 }`:                                                 `destination "v2".sample: applies to a shadow destination`,
+		`{ name: v2, type: stdout, shadow: true, sample: 0 }`:                                     `destination "v2".sample: must be above 0 and at most 1`,
+		`{ name: v2, type: stdout, shadow: true, sample: 5 }`:                                     `destination "v2".sample: must be above 0 and at most 1`,
+		`{ name: v2, type: stdout, shadow: true, required: true }`:                                `destination "v2".required: a shadow destination is never required`,
+		`{ name: v2, type: stdout, shadow: true, deliver_after: 1m }`:                             `destination "v2".shadow: does not go with deliver_after or deliver_at`,
+		"{ name: v2, type: stdout, shadow: true }\n  - { name: x, type: stdout, fallback: [v2] }": `destination "x".fallback[0]: "v2" is a shadow destination`,
+	} {
+		_, err := loadYAML(t, with(d, "to: [out, v2]"))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+	_, err = loadYAML(t, with(`{ name: v2, type: stdout, shadow: true }`, "to: [v2]"))
+	assert.Contains(t, errText(t, err), `names shadow destinations only`)
+}
+
+func TestValidateSchedule(t *testing.T) {
+	src := func(s string) string {
+		return strings.Replace(minimal, "  - { name: in, type: stdin }", "  - "+s, 1)
+	}
+	for _, ok := range []string{
+		`{ name: in, type: schedule, cron: "0 8 * * 1-5", timezone: Europe/Madrid, body: '{"a":1}' }`,
+		`{ name: in, type: schedule, cron: "@daily" }`,
+		`{ name: in, type: schedule, interval: 30s }`,
+	} {
+		l, err := loadYAML(t, src(ok))
+		require.NoError(t, err, ok)
+		assert.Empty(t, l.Spec.Sources[0].Mode)
+	}
+	for s, want := range map[string]string{
+		`{ name: in, type: schedule }`:                                         `source "in": a schedule source needs cron or interval`,
+		`{ name: in, type: schedule, cron: "* * * * *", interval: 1m }`:        `source "in": set cron or interval, not both`,
+		`{ name: in, type: schedule, cron: "61 * * * *" }`:                     `source "in".cron: minute: 61 is outside 0-59`,
+		`{ name: in, type: schedule, cron: "0 0 30 2 *" }`:                     `source "in".cron: the expression never matches`,
+		`{ name: in, type: schedule, interval: 100ms }`:                        `source "in".interval: must be at least 1s`,
+		`{ name: in, type: schedule, interval: 1m, timezone: Europe/Madrid }`:  `source "in".timezone: applies with cron`,
+		`{ name: in, type: schedule, cron: "@daily", timezone: Mars/Olympus }`: `source "in".timezone: "Mars/Olympus" is not a time zone name`,
+		`{ name: in, type: stdin, cron: "@daily" }`:                            `source "in".cron: applies to schedule sources only`,
+		`{ name: in, type: stdin, timezone: UTC }`:                             `source "in".timezone: applies to schedule sources only`,
+	} {
+		_, err := loadYAML(t, src(s))
+		assert.Contains(t, errText(t, err), want, s)
+	}
+}
+
+func TestValidateSMTP(t *testing.T) {
+	dest := func(d string) string {
+		return strings.Replace(minimal, "  - { name: out, type: stdout }", "  - "+d, 1)
+	}
+	for _, ok := range []string{
+		`{ name: out, type: smtp, url: "smtp://mail.test", username: u, password: p, from: "Relay <relay@x.test>", to: [ops@x.test, "{{ .json.owner }}"], subject: "{{ .json.s }}" }`,
+		`{ name: out, type: smtp, url: "smtps://mail.test:465", from: relay@x.test, to: ["a@x.test, b@x.test"] }`,
+		`{ name: out, type: smtp, url: "smtp+plain://localhost:1025", from: relay@x.test, to: [ops@x.test] }`,
+	} {
+		_, err := loadYAML(t, dest(ok))
+		require.NoError(t, err, ok)
+	}
+	for d, want := range map[string]string{
+		`{ name: out, type: smtp, from: relay@x.test, to: [ops@x.test] }`:                                                       `destination "out".url: is required`,
+		`{ name: out, type: smtp, url: "https://mail.test", from: relay@x.test, to: [ops@x.test] }`:                             `destination "out".url: must be smtp://host`,
+		`{ name: out, type: smtp, url: "smtp://u:p@mail.test", from: relay@x.test, to: [ops@x.test] }`:                          `destination "out".url: put the user name and password in username and password`,
+		`{ name: out, type: smtp, url: "smtp+plain://mail.test", tls: { server_name: x }, from: relay@x.test, to: [o@x.test] }`: `destination "out".tls: does not go with smtp+plain://`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", username: u, from: relay@x.test, to: [ops@x.test] }`:                 `destination "out": username and password go together`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", to: [ops@x.test] }`:                                                  `destination "out".from: is required`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay, to: [ops@x.test] }`:                                     `destination "out".from: "relay" is not an email address`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay@x.test }`:                                                `destination "out".to: needs at least one address`,
+		`{ name: out, type: smtp, url: "smtp://mail.test", from: relay@x.test, to: [nobody] }`:                                  `destination "out".to[0]: "nobody" is not an email address`,
+		`{ name: out, type: stdout, from: relay@x.test }`:                                                                       `destination "out".from: applies to smtp destinations only`,
+		`{ name: out, type: stdout, to: [ops@x.test] }`:                                                                         `destination "out".to: applies to smtp destinations only`,
+	} {
+		_, err := loadYAML(t, dest(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
