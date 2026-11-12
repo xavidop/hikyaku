@@ -187,6 +187,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `deliver_after` | [Duration](#duration) | Hold each message of a route this long before delivering it here, counted from when it was received. |
 | `deliver_at` | string | Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once. |
 | `rate_limit` | [RateLimit](#ratelimit) | Send at most this many requests per second; the others wait their turn. |
+| `shadow` | boolean | A shadow destination gets a copy of what the routes send it, on the side: its failures never hold up, fail or dead-letter a message. For trying a new consumer against real traffic. |
+| `sample` | number | shadow: the share of messages copied, from above 0 to 1 (0.05 is 5%; default 1, every message). |
 | `batch` | [Batch](#batch) | Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch. |
 
 ## `Member`

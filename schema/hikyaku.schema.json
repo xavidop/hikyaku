@@ -1009,6 +1009,16 @@
           "$ref": "#/$defs/RateLimit",
           "description": "Send at most this many requests per second; the others wait their turn."
         },
+        "shadow": {
+          "type": "boolean",
+          "description": "A shadow destination gets a copy of what the routes send it, on the side: its failures never hold up, fail or dead-letter a message. For trying a new consumer against real traffic."
+        },
+        "sample": {
+          "type": "number",
+          "maximum": 1,
+          "exclusiveMinimum": 0,
+          "description": "shadow: the share of messages copied, from above 0 to 1 (0.05 is 5%; default 1, every message)."
+        },
         "batch": {
           "$ref": "#/$defs/Batch",
           "description": "Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."

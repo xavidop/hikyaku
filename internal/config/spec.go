@@ -460,6 +460,9 @@ type Destination struct {
 	DeliverAt    string     `yaml:"deliver_at,omitempty" jsonschema_description:"Per-message template of the time to deliver at, in RFC 3339 (2026-12-24T09:00:00Z). A message it renders empty for follows deliver_after, or goes at once."`
 	RateLimit    *RateLimit `yaml:"rate_limit,omitempty" jsonschema_description:"Send at most this many requests per second; the others wait their turn."`
 
+	Shadow bool     `yaml:"shadow,omitempty" jsonschema_description:"A shadow destination gets a copy of what the routes send it, on the side: its failures never hold up, fail or dead-letter a message. For trying a new consumer against real traffic."`
+	Sample *float64 `yaml:"sample,omitempty" jsonschema:"exclusiveMinimum=0,maximum=1" jsonschema_description:"shadow: the share of messages copied, from above 0 to 1 (0.05 is 5%; default 1, every message)."`
+
 	Batch *Batch `yaml:"batch,omitempty" jsonschema_description:"Deliver messages in batches: one request (one Kafka produce, one SQS SendMessageBatch, one S3 object, one HTTP body) per batch."`
 }
 

@@ -698,3 +698,28 @@ func TestValidateOAuth2(t *testing.T) {
 		assert.Contains(t, errText(t, err), want, d)
 	}
 }
+
+func TestValidateShadow(t *testing.T) {
+	with := func(d, route string) string {
+		s := strings.Replace(minimal, "  - { name: out, type: stdout }", "  - { name: out, type: stdout }\n  - "+d, 1)
+		return strings.Replace(s, "to: [out] }", route+" }", 1)
+	}
+	spec, err := loadYAML(t, with(`{ name: v2, type: stdout, shadow: true, sample: 0.05 }`, "to: [out, v2]"))
+	require.NoError(t, err)
+	assert.False(t, spec.Spec.Destinations[1].IsRequired())
+	assert.Equal(t, 0.05, spec.Spec.Destinations[1].SampleRate())
+	assert.Equal(t, 1.0, spec.Spec.Destinations[0].SampleRate())
+	for d, want := range map[string]string{
+		`{ name: v2, type: stdout, sample: 0.5 }`:                                                 `destination "v2".sample: applies to a shadow destination`,
+		`{ name: v2, type: stdout, shadow: true, sample: 0 }`:                                     `destination "v2".sample: must be above 0 and at most 1`,
+		`{ name: v2, type: stdout, shadow: true, sample: 5 }`:                                     `destination "v2".sample: must be above 0 and at most 1`,
+		`{ name: v2, type: stdout, shadow: true, required: true }`:                                `destination "v2".required: a shadow destination is never required`,
+		`{ name: v2, type: stdout, shadow: true, deliver_after: 1m }`:                             `destination "v2".shadow: does not go with deliver_after or deliver_at`,
+		"{ name: v2, type: stdout, shadow: true }\n  - { name: x, type: stdout, fallback: [v2] }": `destination "x".fallback[0]: "v2" is a shadow destination`,
+	} {
+		_, err := loadYAML(t, with(d, "to: [out, v2]"))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+	_, err = loadYAML(t, with(`{ name: v2, type: stdout, shadow: true }`, "to: [v2]"))
+	assert.Contains(t, errText(t, err), `names shadow destinations only`)
+}

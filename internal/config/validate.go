@@ -474,6 +474,7 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 		if d.DeliverAfter < 0 {
 			v.add(p+".deliver_after", "must not be negative")
 		}
+		v.shadow(p, d)
 		if rl := d.RateLimit; rl != nil {
 			if rl.PerSecond <= 0 {
 				v.add(p+".rate_limit.per_second", "must be above 0")
@@ -496,6 +497,53 @@ func (v *validator) destinations(stores map[string]bool) map[string]bool {
 		v.endpoint(p, d.Endpoint)
 	}
 	return names
+}
+
+// shadow checks a shadow destination: it is never required, it is nobody's
+// fallback, and nothing waits for it.
+func (v *validator) shadow(p string, d *Destination) {
+	if d.Sample != nil {
+		if !d.Shadow {
+			v.add(p+".sample", "applies to a shadow destination (shadow: true)")
+		}
+		if *d.Sample <= 0 || *d.Sample > 1 {
+			v.add(p+".sample", "must be above 0 and at most 1 (0.05 is 5%%)")
+		}
+	}
+	if !d.Shadow {
+		return
+	}
+	if d.Required != nil && *d.Required {
+		v.add(p+".required", "a shadow destination is never required")
+	}
+	if d.DeliverAfter != 0 || d.DeliverAt != "" {
+		v.add(p+".shadow", "does not go with deliver_after or deliver_at")
+	}
+	for i := range v.s.Destinations {
+		o := &v.s.Destinations[i]
+		if j := slices.Index(o.Fallback, d.Name); j >= 0 && o.Name != d.Name {
+			v.add(fmt.Sprintf("destination %q.fallback[%d]", o.Name, j), "%q is a shadow destination: it cannot be a fallback", d.Name)
+		}
+	}
+	for i := range v.s.Sources {
+		src := &v.s.Sources[i]
+		if src.Respond != nil && src.Respond.From == d.Name {
+			v.add(fmt.Sprintf("source %q.respond.from", src.Name), "%q is a shadow destination: nothing waits for its reply", d.Name)
+		}
+	}
+	if dl := v.s.DeadLetter; dl != nil && slices.Contains(dl.Fallback, d.Name) {
+		v.add("dead_letter.fallback", "%q is a shadow destination", d.Name)
+	}
+	for i := range v.s.Routes {
+		r := &v.s.Routes[i]
+		if len(r.To) > 0 && !slices.ContainsFunc(r.To, func(n string) bool { return !v.isShadow(n) }) {
+			v.add(fmt.Sprintf("route %q.to", r.Name), "names shadow destinations only: a route needs a destination that is not a shadow")
+		}
+	}
+}
+
+func (v *validator) isShadow(name string) bool {
+	return slices.ContainsFunc(v.s.Destinations, func(d Destination) bool { return d.Name == name && d.Shadow })
 }
 
 func (v *validator) group(p string, d *Destination) {

@@ -33,6 +33,8 @@ type destination struct {
 	limiter    *rate.Limiter // rate_limit; nil without one
 	delay      time.Duration
 	deliverAt  *transform.Template
+	shadow     bool    // gets copies on the side (shadow: true)
+	sample     float64 // the share of messages a shadow gets
 }
 
 // Hop is one destination tried for a message: the primary or a fallback.
