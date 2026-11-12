@@ -30,6 +30,8 @@ hikyaku run                                # start the relay
 | [`hikyaku run`](#hikyaku-run) | Run the relay: local development and the container entrypoint |
 | [`hikyaku validate`](#hikyaku-validate) | Check the spec: keys, references, fallback cycles, CEL, jq, templates |
 | [`hikyaku lint`](#hikyaku-lint) | Warn about specs that work but probably should not |
+| [`hikyaku graph`](#hikyaku-graph) | Draw the spec as a diagram |
+| [`hikyaku test`](#hikyaku-test) | Check that the spec routes and transforms test messages as expected |
 | [`hikyaku init`](#hikyaku-init) | Scaffold a spec from a template |
 | [`hikyaku schema`](#hikyaku-schema) | Print the JSON Schema of the spec |
 | [`hikyaku doctor`](#hikyaku-doctor) | Check every destination, model, secret and plugin |
@@ -39,6 +41,7 @@ hikyaku run                                # start the relay
 | [`hikyaku chaos`](#hikyaku-chaos) | Inject faults into a destination to exercise retries and fallbacks |
 | [`hikyaku dev`](#hikyaku-dev) | `run` plus the Genkit reflection server |
 | [`hikyaku tail`](#hikyaku-tail) | Stream live envelopes from a running relay |
+| [`hikyaku forward`](#hikyaku-forward) | Send the messages a running relay receives to a local URL too |
 | [`hikyaku dlq`](#hikyaku-dlq) | List, inspect and replay dead letters |
 | [`hikyaku history`](#hikyaku-history) | Show, correct, export and forget routing history |
 | [`hikyaku version`](#hikyaku-version) | Print the version, commit and Genkit version |
@@ -62,7 +65,8 @@ Every command takes these flags:
 ## Spec files
 
 Commands that read a spec take it from `-f, --file`. The default is `hikyaku.yaml` in the working
-directory. `-f` can repeat. A directory means its `*.yaml` and `*.yml` files, in name order. The
+directory. `-f` can repeat. A directory means its `*.yaml` and `*.yml` files, in name order,
+without the `*.test.yaml` files of [`hikyaku test`](#hikyaku-test). The
 files are merged into one spec, as [The spec](/docs/spec/#multiple-files) describes, and every
 file must agree on `name`.
 
@@ -140,6 +144,187 @@ Exit `0` with warnings, `2` when the spec is invalid.
 | Flag | Meaning |
 |---|---|
 | `--strict` | Exit `1` when there is any warning, for CI. |
+
+## hikyaku graph
+
+```sh
+hikyaku graph [--format mermaid|dot|json] [--dead-letter]
+```
+
+`hikyaku graph` draws the spec as a diagram, so you can see where a message may go:
+
+- every source points at the routes that read it;
+- every route points at the destinations it may pick: its `to`, the rules, defaults and
+  candidates of its routers, and the `on_invalid` of a `validate` step;
+- every destination points at its fallbacks.
+
+A fallback, a shadow destination and an `on_invalid` destination are dashed lines. A
+destination that only a later router of the chain can pick is labeled with that router, such
+as `static fallback`.
+
+The command reads the spec only. It connects to nothing and reads no secret.
+
+```sh
+hikyaku graph > relay.mmd                           # a Mermaid flowchart
+hikyaku graph --format dot | dot -Tsvg > relay.svg  # with Graphviz
+```
+
+The default output is a [Mermaid](https://mermaid.js.org) flowchart. GitHub and many
+documentation tools render it inside a `mermaid` code block:
+
+```text
+flowchart LR
+  s0(["stripe<br/>http"])
+  r1{{"payments<br/>rules"}}
+  d2["billing<br/>http"]
+  d3["spool<br/>file"]
+  d4["audit<br/>http"]
+  s0 --> r1
+  r1 --> d3
+  r1 -->|"default"| d2
+  r1 -.->|"shadow"| d4
+  d2 -.->|"fallback"| d3
+```
+
+Sources are rounded, routes are hexagons, destinations are boxes, and the dead-letter queue
+is a cylinder.
+
+| Flag | Meaning |
+|---|---|
+| `--format` | `mermaid` (default), `dot` for Graphviz, or `json` for the nodes and edges as data. |
+| `--dead-letter` | Draw the dead-letter queue too, with a line from every required destination at the end of a fallback chain. |
+
+## hikyaku test
+
+```sh
+hikyaku test [file or directory ...] [--run regexp] [--json]
+```
+
+`hikyaku test` checks that the spec does what you expect with the messages you give it. A
+test is a message from a source, and what must happen to it: the destinations it goes to,
+the body each one gets, the fallback that takes over when a destination is down. Run it
+before a deploy and in CI, so a change to a filter, a rule or a transform cannot break a
+route without you knowing.
+
+Nothing is sent. Every destination, every group member and the dead-letter queue is replaced
+by a stand-in that keeps what it gets. Filters, transforms, routers, retries and fallbacks
+are the real ones, without their waits: no backoff, no `deliver_after`, no rate limit. Stores
+are in memory. Every test runs on a fresh relay, so one test cannot change another.
+
+Without an argument the command reads `hikyaku.test.yaml`. A directory stands for its
+`*.test.yaml` and `*.test.yml` files.
+
+```yaml
+# hikyaku.test.yaml
+tests:
+  - name: a payment goes to billing in cents
+    source: stripe
+    body: { id: p1, type: payment, amount: 12.5 }
+    expect:
+      status: delivered
+      to: [billing]
+      shadowed: [audit]
+      delivered:
+        billing:
+          body: { id: p1, cents: 1250 }
+
+  - name: billing down falls back to the spool
+    source: stripe
+    body: { id: p2, type: payment, amount: 1 }
+    down: [billing]
+    expect:
+      status: delivered
+      delivered:
+        billing: { via: spool, contains: { id: p2 } }
+
+  - name: a ping is filtered out
+    source: stripe
+    body: { type: ping }
+    expect: { status: filtered, to: [] }
+```
+
+```console
+$ hikyaku test
+✓ a payment goes to billing in cents (1ms)
+✓ billing down falls back to the spool (0s)
+✗ a ping is filtered out (0s)
+    status: want filtered, got delivered
+    to: want [], got [billing]
+    route payments: rules → billing, audit
+✗ 1 of 3 test(s) failed
+```
+
+A test has these keys:
+
+| Key | Meaning |
+|---|---|
+| `name` | The name of the test. Required, and unique in its file. |
+| `source` | The source the message comes from. Required. |
+| `body` | The message. A string is sent as it is. Anything else is sent as JSON. |
+| `file` | Read the body from a file instead, relative to the test file. |
+| `headers`, `attributes`, `subject`, `content_type`, `id` | The rest of the message, as a source would set it. |
+| `down` | Destinations, group members or `dead_letter` that cannot be reached in this test: every delivery to one fails. |
+| `decide` | Answer for a route's router: `decide: { triage: [support] }`. See below. |
+| `expect` | What must happen. A key you leave out is not checked. |
+
+`expect` has these keys:
+
+| Key | Meaning |
+|---|---|
+| `status` | The outcome of the message: `delivered`, `filtered`, `unrouted`, `dead_lettered` or `failed`. |
+| `to` | Every destination the routes picked, in any order. Shadow destinations are not in this list. |
+| `not_to` | Destinations that must not be picked. |
+| `shadowed` | Every shadow destination that got a copy, in any order. |
+| `failed` | Every destination whose delivery failed, in any order. |
+| `delivered` | What a destination got, by destination name. |
+| `routes` | What one route did, by route name: `filtered`, `to`, `router` (the router that decided) and `error` (a part of the route's error). |
+
+Under `delivered`, each destination has these keys:
+
+| Key | Meaning |
+|---|---|
+| `via` | The destination that took the message: the destination itself, or one of its fallbacks. |
+| `body` | The whole body. A string is compared as text, anything else as JSON. |
+| `contains` | A part of the body. A string must be in it. Anything else must be a subset of its JSON: every key you give must be there with the same value. |
+| `content_type` | The content type of the message. |
+| `headers` | Headers the message must have, with their values. |
+| `attributes` | Attributes the message must have, with their values. |
+
+A test sees the message as the destination's `transforms` left it. It does not see what the
+protocol adds after that, such as the `url`, `headers` or `body` template of an http
+destination, or the `subject` of an email.
+
+### AI routes
+
+A route with an AI router calls its model, as [`hikyaku route --dry-run`](#hikyaku-route)
+does. To test the rest of the spec without a model, answer for the route with `decide`: at
+the top of the file for every test, or inside one test.
+
+```yaml
+decide: { triage: [support] }     # every test: the triage route picks support
+tests:
+  - name: a billing question is sent with its account
+    source: chat
+    body: { text: "where is my invoice", account: 42 }
+    decide: { triage: [billing] } # this test: billing
+    expect:
+      delivered:
+        billing: { contains: { account: 42 } }
+```
+
+Secrets are read only when a test calls a model. A spec whose AI routes are all answered
+for, or that has none, is tested without any secret or key. To score the model's own answers
+on labeled cases, use [`hikyaku ai test`](#hikyaku-ai-test).
+
+An `enrich` step is not replaced: it calls its URL in a test too.
+
+Exit `0` when every test passes, `1` when a test fails or no test ran, `2` when the spec or a
+test file is invalid.
+
+| Flag | Meaning |
+|---|---|
+| `--run` | Run only the tests whose name matches this regular expression. |
+| `--json` | Print the results as JSON, with the report of every message. |
 
 ## hikyaku init
 
@@ -403,6 +588,53 @@ With `--json`, it prints each event as a JSON line instead.
 | `--admin` | The admin API of the relay (default: the spec's `server.admin.listen`, else `http://127.0.0.1:9090`). |
 | `--token` | The admin token (default: `HIKYAKU_ADMIN_TOKEN`, else the spec's `server.admin.token`). |
 | `--json` | Print each event as JSON. |
+
+## hikyaku forward
+
+```sh
+hikyaku forward --to http://localhost:3000/webhooks [--source stripe] [--admin https://relay.example.com:9090]
+```
+
+`hikyaku forward` sends a copy of every message a running relay receives to a URL on your
+machine. Use it to work on a webhook handler with real traffic, without a public URL for your
+laptop: the sender keeps calling the relay, and your local server gets the same requests.
+
+It reads the relay's live stream over the admin API, like [`hikyaku tail`](#hikyaku-tail),
+and makes one request per message. The request has the method, the headers and the body the
+message came with, so a signature header such as `Stripe-Signature` still matches the body.
+It also has `X-Hikyaku-Id` and `X-Hikyaku-Source`. A message from a source that is not http
+is sent with `POST`.
+
+```console
+$ hikyaku forward --to http://localhost:3000/webhooks/stripe --source stripe
+✓ forwarding http://127.0.0.1:9090 to http://localhost:3000/webhooks/stripe
+10:42:07.113 stripe evt_1PqX → 200 (12ms)
+10:42:09.540 stripe evt_1PqY → 500 (3ms)
+```
+
+The relay delivers every message as usual. What your local server answers is printed and
+changes nothing on the relay.
+
+It is a tool for development, so it does not promise delivery:
+
+- a message that arrives while the connection to the relay is down is not forwarded later.
+  When the stream ends, the command connects again by itself;
+- a relay under heavy load may skip events for a slow reader, as it does for `hikyaku tail`;
+- a secret value of the spec that appears inside a message is hidden, as in `hikyaku tail`;
+- the headers a source removes after it checks them, such as a bearer token, are not there.
+
+The stream needs the admin token from another host, so set `server.admin.token` on the
+relay. Anyone with that token can read every message, so treat it like a password.
+
+| Flag | Meaning |
+|---|---|
+| `--to` | The local URL every message is sent to. Required. |
+| `--source` | Only the messages of this source. |
+| `--keep-path` | Add the path and the query the message came on to `--to`: a message received on `/stripe/events` goes to `<to>/stripe/events`. |
+| `--header` | A header to add or replace, as `Name: value`. Repeatable. |
+| `--timeout` | How long the local server may take to answer (default `30s`). |
+| `--admin` | The admin API of the relay (default: the spec's `server.admin.listen`, else `http://127.0.0.1:9090`). |
+| `--token` | The admin token (default: `HIKYAKU_ADMIN_TOKEN`, else the spec's `server.admin.token`). |
 
 ## hikyaku dlq
 

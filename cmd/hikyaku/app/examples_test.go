@@ -24,6 +24,9 @@ func TestExamplesValidate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, specs)
 	for _, s := range specs {
+		if strings.HasSuffix(s, ".test.yaml") {
+			continue // tests of an example, not a spec (TestExamplesTests runs them)
+		}
 		if strings.Contains(s, "custom-destination") || strings.Contains(s, "-plugin") {
 			continue // their types come from their own binaries (TestCRMPluginExample and TestPostgresPluginExample validate them)
 		}
@@ -31,6 +34,21 @@ func TestExamplesValidate(t *testing.T) {
 			code, out, errOut := hk(t, "validate", "-f", s)
 			assert.Equal(t, 0, code, errOut)
 			assert.Contains(t, out, "valid")
+		})
+	}
+}
+
+// Every example that ships tests passes them, with no secret set.
+func TestExamplesTests(t *testing.T) {
+	files, err := filepath.Glob("../../../examples/*/hikyaku.test.yaml")
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+	for _, f := range files {
+		dir := filepath.Dir(f)
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			code, out, errOut := hk(t, "test", "-f", filepath.Join(dir, "hikyaku.yaml"), f)
+			assert.Equal(t, 0, code, out+errOut)
+			assert.Contains(t, out, "passed")
 		})
 	}
 }

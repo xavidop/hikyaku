@@ -372,7 +372,9 @@ hikyaku run -f ./relay/                     # every YAML file in the directory
 ```
 
 `-f` repeats. A directory loads every YAML file in it: the `*.yaml` and `*.yml` files directly
-inside it, in name order. The files are merged into one spec:
+inside it, in name order. Files named `*.test.yaml` or `*.test.yml` are skipped: they hold the
+tests of [`hikyaku test`](/docs/cli/#hikyaku-test), not a part of the spec. The files are merged
+into one spec:
 
 - lists (`sources`, `destinations`, `stores`, `routes`, `plugins`) are concatenated, and names
   must stay unique: a duplicate names both files. A plugin's relative `command` resolves against
