@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.5.0](https://github.com/xavidop/hikyaku/compare/v1.4.0...v1.5.0) (2026-11-12)
+
+
+### Features
+
+* hikyaku graph, test and forward ([#22](https://github.com/xavidop/hikyaku/issues/22)) ([8765438](https://github.com/xavidop/hikyaku/commit/87654382d6afc52e8b0220167ef86ed9447a3232))
+
 # [1.4.0](https://github.com/xavidop/hikyaku/compare/v1.3.0...v1.4.0) (2026-11-12)
 
 
