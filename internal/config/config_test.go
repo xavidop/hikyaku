@@ -782,3 +782,26 @@ func TestValidateSMTP(t *testing.T) {
 		assert.Contains(t, errText(t, err), want, d)
 	}
 }
+
+// A file of tests for hikyaku test may sit in a spec directory: it is not
+// part of the spec.
+func TestExpandPathsSkipsTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"hikyaku.yaml", "hikyaku.test.yaml", "orders.TEST.yml", "routes.yml"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("version: 1\n"), 0o600))
+	}
+	files, err := ExpandPaths([]string{dir})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(dir, "hikyaku.yaml"), filepath.Join(dir, "routes.yml")}, files)
+
+	// Named on its own, a file is loaded whatever it is called.
+	one := filepath.Join(dir, "hikyaku.test.yaml")
+	files, err = ExpandPaths([]string{one})
+	require.NoError(t, err)
+	assert.Equal(t, []string{one}, files)
+
+	only := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(only, "a.test.yaml"), []byte("tests: []\n"), 0o600))
+	_, err = ExpandPaths([]string{only})
+	assert.ErrorContains(t, err, "no .yaml files")
+}

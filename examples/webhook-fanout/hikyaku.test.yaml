@@ -1,0 +1,41 @@
+# Tests of this example: hikyaku test (in this directory).
+#
+# Nothing is sent and no secret is read: every destination is a stand-in.
+tests:
+  - name: an event goes to billing, analytics and the archive
+    source: webhooks
+    body: { type: invoice.paid, id: evt_1, amount: 4200 }
+    expect:
+      status: delivered
+      to: [billing, analytics, archive]
+      failed: []
+      delivered:
+        billing: { via: billing, body: { type: invoice.paid, id: evt_1, amount: 4200 } }
+        archive: { contains: { id: evt_1 } }
+
+  - name: billing down fails over to its DR endpoint
+    source: webhooks
+    body: { type: invoice.paid, id: evt_2 }
+    down: [billing]
+    expect:
+      status: delivered
+      delivered:
+        billing: { via: billing-dr, contains: { id: evt_2 } }
+
+  - name: analytics is best effort, so its failure loses nothing
+    source: webhooks
+    body: { type: invoice.paid, id: evt_3 }
+    down: [analytics]
+    expect:
+      status: delivered
+      failed: [analytics]
+
+  - name: billing and its DR both down dead-letters the event
+    source: webhooks
+    body: { type: invoice.paid, id: evt_4 }
+    down: [billing, billing-dr]
+    expect:
+      status: dead_lettered
+      failed: [billing]
+      delivered:
+        archive: { contains: { id: evt_4 } }

@@ -72,6 +72,9 @@ func newBatcher(e *Engine, name string, b *config.Batch) *batcher {
 	if out.wait <= 0 {
 		out.wait = defaultBatchWait
 	}
+	if e.opts.NoWait {
+		out.wait = time.Millisecond
+	}
 	if out.format == "" {
 		out.format = "ndjson"
 	}

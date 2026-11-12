@@ -42,8 +42,16 @@ type Loaded struct {
 	SecretValues map[string]string
 }
 
+// IsTestFile reports a file of tests for hikyaku test (*.test.yaml,
+// *.test.yml): it may sit next to the spec, and is not part of it.
+func IsTestFile(name string) bool {
+	n := strings.ToLower(name)
+	return strings.HasSuffix(n, ".test.yaml") || strings.HasSuffix(n, ".test.yml")
+}
+
 // ExpandPaths turns files and directories into the list of files to load:
-// a directory contributes every *.yaml and *.yml directly inside it, sorted.
+// a directory contributes every *.yaml and *.yml directly inside it, sorted,
+// except test files (IsTestFile). A test file named on its own is loaded.
 func ExpandPaths(paths []string) ([]string, error) {
 	var out []string
 	for _, p := range paths {
@@ -66,7 +74,7 @@ func ExpandPaths(paths []string) ([]string, error) {
 		var files []string
 		for _, e := range entries {
 			ext := strings.ToLower(filepath.Ext(e.Name()))
-			if !e.IsDir() && (ext == ".yaml" || ext == ".yml") {
+			if !e.IsDir() && (ext == ".yaml" || ext == ".yml") && !IsTestFile(e.Name()) {
 				files = append(files, filepath.Join(p, e.Name()))
 			}
 		}

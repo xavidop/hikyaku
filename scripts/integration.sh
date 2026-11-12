@@ -66,7 +66,13 @@ echo "==> build bin/hikyaku (-tags llmfake)"
 echo "==> validate every example spec"
 for f in examples/*/hikyaku*.yaml; do
 	case "$f" in *custom-destination* | *crm-plugin* | *postgres-plugin*) continue ;; esac # their types need their binaries; postgres-plugin needs a database
+	case "$f" in *.test.yaml) continue ;; esac # tests of an example, not a spec
 	"$bin" validate -f "$f" --color never
+done
+
+echo "==> run the tests every example ships"
+for f in examples/*/hikyaku.test.yaml; do
+	"$bin" test -f "$(dirname "$f")/hikyaku.yaml" "$f" --color never
 done
 
 echo "==> webhook-fanout: signed webhook, retries, fallback, best-effort"

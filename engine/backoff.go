@@ -76,3 +76,12 @@ func defaultRand() float64 { return rand.Float64() }
 
 // sleep waits d or until ctx ends; false when ctx ended first.
 func sleep(ctx context.Context, d time.Duration) bool { return backoff.Sleep(ctx, d) }
+
+// sleep is the engine's wait between attempts. With Options.NoWait it does
+// not wait, and still reports a context that ended.
+func (e *Engine) sleep(ctx context.Context, d time.Duration) bool {
+	if e.opts.NoWait {
+		return ctx.Err() == nil
+	}
+	return sleep(ctx, d)
+}

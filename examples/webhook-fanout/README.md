@@ -12,6 +12,16 @@ Two specs ship with the example:
 - `hikyaku.yaml`: the real thing, talking to internal HTTPS services.
 - `hikyaku.llmfake.yaml`: the same fan-out with [fault sinks](../../protocols/fault) in place of the services. A fault sink is a destination that fails the way you tell it to, so every path runs offline on your machine.
 
+## Test it
+
+`hikyaku.test.yaml` holds tests of the real spec: where an event goes, what happens when billing is down, and what is dead-lettered. They run without the services and without the secret, because every destination is replaced by a stand-in:
+
+```sh
+hikyaku test
+```
+
+To see the spec as a diagram, run `hikyaku graph`.
+
 ## Run it offline
 
 Start the relay with the offline spec. The secret is the key the webhook is signed with:

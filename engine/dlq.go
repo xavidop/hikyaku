@@ -63,7 +63,7 @@ func (e *Engine) buildDLQ(ctx context.Context) error {
 	retry := config.ResolveRetry(spec.Retry, &config.Retry{Attempts: config.DefaultDLQAttempts, Backoff: config.Duration(100 * time.Millisecond), MaxBackoff: config.Duration(2 * time.Second)})
 	retry.RetryOn = config.TagList{"connect", "timeout", "5xx", "429"}
 	dl := &deadLetter{policy: newRetryPolicy(retry)}
-	primary, err := e.dlqSink(ctx, "dead_letter", spec.Endpoint)
+	primary, err := e.dlqSink(ctx, DeadLetterName, spec.Endpoint)
 	if err != nil {
 		return fmt.Errorf("dead_letter: %w", err)
 	}
@@ -83,9 +83,18 @@ func (e *Engine) buildDLQ(ctx context.Context) error {
 	return nil
 }
 
+// DeadLetterName is the destination name Options.Sinks gets for a
+// dead-letter hop.
+const DeadLetterName = "dead_letter"
+
 // dlqSink builds a DLQ hop. stdout, stderr and file are built in, so the
 // last resort never depends on which protocols a binary links.
 func (e *Engine) dlqSink(ctx context.Context, name string, ep config.Endpoint) (dlqHop, error) {
+	if e.opts.Sinks != nil {
+		if s := e.opts.Sinks(DeadLetterName, plugin.Spec{Name: name, Kind: ep.Type, Options: ep.Options, Config: &ep, Env: e.pluginEnv()}); s != nil {
+			return dlqHop{name: name, sink: s, own: true}, nil
+		}
+	}
 	switch ep.Type {
 	case "stdout":
 		return dlqHop{name: name, sink: newWriterSink(name, os.Stdout, ep.Format), own: true}, nil
@@ -153,7 +162,7 @@ func (e *Engine) dlqWrite(ctx context.Context, h dlqHop, env *envelope.Envelope)
 		if !e.dlq.policy.retryable(class, plugin.Tags(err)) || n == e.dlq.policy.attempts {
 			return err
 		}
-		if !sleep(ctx, e.dlq.policy.waitFor(n, ra, e.rand)) {
+		if !e.sleep(ctx, e.dlq.policy.waitFor(n, ra, e.rand)) {
 			return err
 		}
 	}

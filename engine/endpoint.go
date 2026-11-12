@@ -136,7 +136,7 @@ func (e *Engine) tryEndpoint(ctx context.Context, d *destination, ep *endpoint, 
 		}
 		wait := d.policy.waitFor(n, retryAfter, e.rand)
 		e.log.Debug("delivery failed, retrying", "destination", d.name, "endpoint", ep.name, "attempt", n, "of", d.policy.attempts, "wait", wait.String(), "err", err)
-		if !sleep(ctx, wait) {
+		if !e.sleep(ctx, wait) {
 			res.outcome = outcomeDeadline
 			return res
 		}
