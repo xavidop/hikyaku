@@ -2872,6 +2872,14 @@
           "type": "array",
           "description": "openai: the model names /v1/models lists and clients may ask for (default [hikyaku]); route on msg.json.model."
         },
+        "cron": {
+          "type": "string",
+          "description": "schedule: when to emit a message, as a five-field cron expression (minute hour day-of-month month day-of-week) or @hourly, @daily, @weekly, @monthly, @yearly. Set cron or interval."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "schedule: the time zone cron is read in, such as Europe/Madrid (default UTC)."
+        },
         "ordering": {
           "$ref": "#/$defs/Ordering",
           "description": "Deliver messages with the same key one at a time, in arrival order."

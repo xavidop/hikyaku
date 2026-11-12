@@ -228,6 +228,9 @@ type Source struct {
 
 	Models []string `yaml:"models,omitempty" jsonschema_description:"openai: the model names /v1/models lists and clients may ask for (default [hikyaku]); route on msg.json.model."`
 
+	Cron     string `yaml:"cron,omitempty" jsonschema_description:"schedule: when to emit a message, as a five-field cron expression (minute hour day-of-month month day-of-week) or @hourly, @daily, @weekly, @monthly, @yearly. Set cron or interval."`
+	Timezone string `yaml:"timezone,omitempty" jsonschema_description:"schedule: the time zone cron is read in, such as Europe/Madrid (default UTC)."`
+
 	Ordering *Ordering `yaml:"ordering,omitempty" jsonschema_description:"Deliver messages with the same key one at a time, in arrival order."`
 
 	Options map[string]any `yaml:"options,omitempty" jsonschema_description:"Settings of a plugin type (a source registered by a custom build); the plugin decodes and validates them."`

@@ -723,3 +723,32 @@ func TestValidateShadow(t *testing.T) {
 	_, err = loadYAML(t, with(`{ name: v2, type: stdout, shadow: true }`, "to: [v2]"))
 	assert.Contains(t, errText(t, err), `names shadow destinations only`)
 }
+
+func TestValidateSchedule(t *testing.T) {
+	src := func(s string) string {
+		return strings.Replace(minimal, "  - { name: in, type: stdin }", "  - "+s, 1)
+	}
+	for _, ok := range []string{
+		`{ name: in, type: schedule, cron: "0 8 * * 1-5", timezone: Europe/Madrid, body: '{"a":1}' }`,
+		`{ name: in, type: schedule, cron: "@daily" }`,
+		`{ name: in, type: schedule, interval: 30s }`,
+	} {
+		l, err := loadYAML(t, src(ok))
+		require.NoError(t, err, ok)
+		assert.Empty(t, l.Spec.Sources[0].Mode)
+	}
+	for s, want := range map[string]string{
+		`{ name: in, type: schedule }`:                                         `source "in": a schedule source needs cron or interval`,
+		`{ name: in, type: schedule, cron: "* * * * *", interval: 1m }`:        `source "in": set cron or interval, not both`,
+		`{ name: in, type: schedule, cron: "61 * * * *" }`:                     `source "in".cron: minute: 61 is outside 0-59`,
+		`{ name: in, type: schedule, cron: "0 0 30 2 *" }`:                     `source "in".cron: the expression never matches`,
+		`{ name: in, type: schedule, interval: 100ms }`:                        `source "in".interval: must be at least 1s`,
+		`{ name: in, type: schedule, interval: 1m, timezone: Europe/Madrid }`:  `source "in".timezone: applies with cron`,
+		`{ name: in, type: schedule, cron: "@daily", timezone: Mars/Olympus }`: `source "in".timezone: "Mars/Olympus" is not a time zone name`,
+		`{ name: in, type: stdin, cron: "@daily" }`:                            `source "in".cron: applies to schedule sources only`,
+		`{ name: in, type: stdin, timezone: UTC }`:                             `source "in".timezone: applies to schedule sources only`,
+	} {
+		_, err := loadYAML(t, src(s))
+		assert.Contains(t, errText(t, err), want, s)
+	}
+}

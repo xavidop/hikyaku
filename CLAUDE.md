@@ -121,6 +121,7 @@ These record where the build departs from the design, and the decisions the desi
   - Each README is the reference for its keys, acknowledgement and resume semantics, attributes and error tags.
   - Error tags are `<protocol>:<code>`, and several modules also add a generic `connect`, `timeout`, `5xx`, `4xx` or `429`.
   - The brokers and clouds register in `wiring_full.go`. tcp/udp and openai stay in hikyaku-lite.
+- **`schedule` source:** `protocols/schedule`, in the lite build too. The cron parser is `internal/cron` in the root module, so `config.Validate` checks `cron` with it (it embeds `time/tzdata` for `timezone`). The message ID is `<source>@<tick in UTC>`. A missed tick is skipped. The source sleeps one minute at most, then reads the clock again.
 - **`split: lines`** (s3, gcs) is a line split, not jq: `engine.Check` skips it for those types.
 - **Listeners:** grpc, tcp and udp sources need a port of their own (validation rejects a shared one); http, ws, sse and openai share ports by path.
 - **DTLS (udp):** pion/dtls v4, pure Go, so hikyaku-lite has it too (about 1.8 MB).

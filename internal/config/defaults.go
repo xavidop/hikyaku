@@ -251,7 +251,7 @@ func DefaultMode(s Source) string {
 		return "listen"
 	case "s3", "gcs":
 		return "poll"
-	case "stdin", "file":
+	case "stdin", "file", "schedule":
 		return ""
 	}
 	return "subscribe"

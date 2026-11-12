@@ -32,6 +32,7 @@ The table says what each protocol can do, and in which source modes.
 | `sse` | listen, subscribe | yes | `Last-Event-ID` resume, a replay buffer on the destination side |
 | `stdin` / `file` | one message per line | | NDJSON; local development and piping |
 | `stdout` / `stderr` / `file` | | yes | one envelope, or one body, per line |
+| `schedule` | a message per tick | | a cron expression or an interval, for scheduled jobs |
 | `grpc` | listen, subscribe | yes | the built-in `hikyaku.relay.v1.Relay`, or any service from a descriptor set or server reflection |
 | `tcp` / `udp` | listen | yes | newline, length-prefix or raw framing; TLS and mTLS on tcp, DTLS on udp |
 | `kafka` | subscribe | yes | consumer groups, commits past the settled prefix, SASL and TLS, the idempotent producer |
@@ -50,7 +51,7 @@ The table says what each protocol can do, and in which source modes.
 
 gRPC, the brokers and the clouds are in the full build only. `hikyaku-lite` leaves their SDKs
 out, and [out-of-process plugins](/docs/plugins/) with them. It keeps http, ws, sse, tcp, udp,
-the files, the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
+the files, the schedule source, the fault sink and the LLM proxy. A lite binary still validates a spec that uses the
 others, but does not run it. Each module's README, linked from its section below, lists every
 key, the attributes it sets and its error tags.
 
@@ -369,6 +370,41 @@ cat events.ndjson | hikyaku run -f pipe.yaml
 ```
 
 [Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/file).
+
+## schedule
+
+A schedule source emits a message when a cron expression matches, or every interval. With a
+route and a destination, that is a scheduled job, with no other tool next to the relay.
+
+```yaml
+sources:
+  - name: morning-report
+    type: schedule
+    cron: "0 8 * * 1-5"          # every weekday at 08:00
+    timezone: Europe/Madrid       # default UTC
+    body: '{"report": "daily"}'  # default {}
+
+  - name: heartbeat
+    type: schedule
+    interval: 30s                 # at least 1s
+
+routes:
+  - name: report
+    from: [morning-report]
+    transforms:
+      - enrich: { url: "https://stats.internal/daily", into: stats }
+    to: [slack]
+```
+
+- `cron` has five fields: minute, hour, day of month, month and day of week. It takes ranges,
+  lists, steps and names (`mon-fri`, `jan`), and `@hourly`, `@daily`, `@weekly`, `@monthly` and
+  `@yearly`. There is no seconds field: use `interval` for that.
+- Each message has the ID `<source>@<tick>` and the attribute `schedule.time`.
+- A tick that passes while the relay is down is skipped, not made up for.
+- Every replica emits its own message. With `cron` the replicas use the same ID, so an
+  `idempotent` destination takes the message once.
+
+[Module README](https://github.com/xavidop/hikyaku/tree/main/protocols/schedule).
 
 ## fault
 

@@ -8,6 +8,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/xavidop/hikyaku/internal/cron"
 )
 
 // The protocol matrix (design §4): source types with their modes, sink
@@ -18,7 +21,7 @@ var (
 		"http": {"listen", "poll"}, "https": {"listen", "poll"},
 		"ws": {"listen", "subscribe"}, "wss": {"listen", "subscribe"},
 		"sse":   {"listen", "subscribe"},
-		"stdin": {""}, "file": {""},
+		"stdin": {""}, "file": {""}, "schedule": {""},
 		"grpc": {"listen", "subscribe"}, "tcp": {"listen"}, "udp": {"listen"},
 		"kafka": {"subscribe"}, "nats": {"subscribe"}, "jetstream": {"subscribe"}, "mqtt": {"subscribe"},
 		"amqp": {"subscribe"}, "redis": {"subscribe"},
@@ -347,6 +350,7 @@ func (v *validator) sources() map[string]bool {
 		if src.Type == "file" && src.Path == "" {
 			v.add(p+".path", "is required for a file source")
 		}
+		v.schedule(p, src)
 		v.sourceProtocol(p, *src)
 		if src.Mode != "listen" {
 			if src.Auth != nil {
@@ -414,6 +418,45 @@ func (v *validator) sources() map[string]bool {
 
 // WebhookProviders are the senders auth.webhook can verify.
 var WebhookProviders = []string{"github", "stripe", "slack", "shopify", "twilio"}
+
+// MinScheduleInterval is the shortest interval of a schedule source.
+const MinScheduleInterval = time.Second
+
+// schedule checks a schedule source: a cron expression or an interval.
+func (v *validator) schedule(p string, src *Source) {
+	if src.Type != "schedule" {
+		if src.Cron != "" {
+			v.add(p+".cron", "applies to schedule sources only")
+		}
+		if src.Timezone != "" {
+			v.add(p+".timezone", "applies to schedule sources only")
+		}
+		return
+	}
+	switch {
+	case src.Cron == "" && src.Interval == 0:
+		v.add(p, "a schedule source needs cron or interval")
+	case src.Cron != "" && src.Interval != 0:
+		v.add(p, "set cron or interval, not both")
+	case src.Cron != "":
+		if _, err := cron.Parse(src.Cron); err != nil {
+			v.add(p+".cron", "%v", err)
+		}
+	case src.Interval.Std() < MinScheduleInterval:
+		v.add(p+".interval", "must be at least %s", MinScheduleInterval)
+	}
+	if src.Timezone != "" {
+		if src.Cron == "" {
+			v.add(p+".timezone", "applies with cron (an interval has no time zone)")
+		}
+		if _, err := time.LoadLocation(src.Timezone); err != nil {
+			v.add(p+".timezone", "%q is not a time zone name (such as Europe/Madrid)", src.Timezone)
+		}
+	}
+	if src.Dedupe != nil {
+		v.add(p+".dedupe", "does not apply to a schedule source")
+	}
+}
 
 func (v *validator) webhookAuth(p, sourceType string, w *WebhookAuth) {
 	if sourceType != "http" {

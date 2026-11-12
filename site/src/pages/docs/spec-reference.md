@@ -105,6 +105,8 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `gcp` | [GCP](#gcp) | pubsub, gcs: project and credentials (default Application Default Credentials). |
 | `azure` | [Azure](#azure) | servicebus, eventhubs: connection string or namespace and credentials. |
 | `models` | string[] | openai: the model names /v1/models lists and clients may ask for (default [hikyaku]); route on msg.json.model. |
+| `cron` | string | schedule: when to emit a message, as a five-field cron expression (minute hour day-of-month month day-of-week) or @hourly, @daily, @weekly, @monthly, @yearly. Set cron or interval. |
+| `timezone` | string | schedule: the time zone cron is read in, such as Europe/Madrid (default UTC). |
 | `ordering` | [Ordering](#ordering) | Deliver messages with the same key one at a time, in arrival order. |
 | `options` | object | Settings of a plugin type (a source registered by a custom build); the plugin decodes and validates them. |
 

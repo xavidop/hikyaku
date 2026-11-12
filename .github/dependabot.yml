@@ -30,6 +30,7 @@ updates:
       - "/protocols/nats"
       - "/protocols/openai"
       - "/protocols/redis"
+      - "/protocols/schedule"
       - "/protocols/sse"
       - "/protocols/tcp"
       - "/protocols/ws"

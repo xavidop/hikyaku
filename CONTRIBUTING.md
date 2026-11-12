@@ -122,6 +122,7 @@ This is a multi-module repository: several Go modules in one repository, tied to
     (its `model` destinations live in `llm`).
   - `protocols/redis`: `redis` sources (subscribe: a stream through a consumer group, or pub/sub)
     and destinations (XADD, PUBLISH). `stores/redis` is the history store, a different module.
+  - `protocols/schedule`: the `schedule` source (a message per cron tick or interval).
   - `protocols/sse`: `sse` sources (listen, subscribe) and destinations.
   - `protocols/tcp`: `tcp` and `udp` sources (listen) and destinations, with newline,
     length-prefix or raw framing, TLS on tcp and DTLS on udp. It uses the standard library and

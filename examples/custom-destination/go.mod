@@ -215,6 +215,7 @@ require (
 	github.com/xavidop/hikyaku/protocols/nats v0.0.0 // indirect
 	github.com/xavidop/hikyaku/protocols/openai v0.0.0 // indirect
 	github.com/xavidop/hikyaku/protocols/redis v0.0.0 // indirect
+	github.com/xavidop/hikyaku/protocols/schedule v0.0.0 // indirect
 	github.com/xavidop/hikyaku/protocols/sse v0.0.0 // indirect
 	github.com/xavidop/hikyaku/protocols/tcp v0.0.0 // indirect
 	github.com/xavidop/hikyaku/protocols/ws v0.0.0 // indirect
@@ -304,6 +305,8 @@ replace github.com/xavidop/hikyaku/protocols/openai => ../../protocols/openai
 replace github.com/xavidop/hikyaku/protocols/amqp => ../../protocols/amqp
 
 replace github.com/xavidop/hikyaku/protocols/redis => ../../protocols/redis
+
+replace github.com/xavidop/hikyaku/protocols/schedule => ../../protocols/schedule
 
 replace github.com/xavidop/hikyaku/protocols/aws => ../../protocols/aws
 
