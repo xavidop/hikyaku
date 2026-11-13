@@ -1,14 +1,18 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/xavidop/hikyaku/internal/config"
+	"github.com/xavidop/hikyaku/internal/diagram"
 )
 
 // Graph is a spec as a picture: its sources, routes and destinations, and
@@ -236,6 +240,11 @@ func buildGraph(spec *config.Spec, withDLQ bool) Graph {
 	return g
 }
 
+// dashed is true for the edges a message does not take in the normal case.
+func (e GraphEdge) dashed() bool {
+	return e.Kind == edgeFallback || e.Kind == edgeShadow || e.Kind == edgeDLQ || e.Kind == edgeInvalid
+}
+
 func trimFloat(f float64) string {
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", f), "0"), ".")
 }
@@ -273,7 +282,7 @@ func (g Graph) Mermaid(w io.Writer) {
 	}
 	for _, e := range g.Edges {
 		arrow := "-->"
-		if e.Kind == edgeFallback || e.Kind == edgeShadow || e.Kind == edgeDLQ || e.Kind == edgeInvalid {
+		if e.dashed() {
 			arrow = "-.->"
 		}
 		if e.Label != "" {
@@ -300,7 +309,7 @@ func (g Graph) Dot(w io.Writer) {
 		if e.Label != "" {
 			attrs = append(attrs, fmt.Sprintf("label=\"%s\"", dotText(e.Label)))
 		}
-		if e.Kind == edgeFallback || e.Kind == edgeShadow || e.Kind == edgeDLQ || e.Kind == edgeInvalid {
+		if e.dashed() {
 			attrs = append(attrs, "style=dashed")
 		}
 		if len(attrs) == 0 {
@@ -312,8 +321,38 @@ func (g Graph) Dot(w io.Writer) {
 	fprintln(w, "}")
 }
 
+// picture is the graph for the built-in renderer, with the shapes of the
+// Mermaid output: sources on the left, then routes, destinations and the
+// dead-letter queue.
+func (g Graph) picture() diagram.Diagram {
+	shapes := map[string]diagram.Shape{
+		nodeSource: diagram.Stadium, nodeRoute: diagram.Hexagon, nodeDest: diagram.Box, nodeDLQ: diagram.Cylinder,
+	}
+	ranks := map[string]int{nodeSource: 0, nodeRoute: 1, nodeDest: 2, nodeDLQ: 3}
+	d := diagram.Diagram{Title: g.Name}
+	for _, n := range g.Nodes {
+		d.Nodes = append(d.Nodes, diagram.Node{ID: n.ID, Shape: shapes[n.Kind], Rank: ranks[n.Kind], Title: n.Name, Detail: n.Detail})
+	}
+	for _, e := range g.Edges {
+		d.Edges = append(d.Edges, diagram.Edge{From: e.From, To: e.To, Label: e.Label, Dashed: e.dashed()})
+	}
+	return d
+}
+
+// SVG renders the graph as an SVG picture.
+func (g Graph) SVG(w io.Writer) error { return g.picture().SVG(w) }
+
+// PNG renders the graph as a PNG image.
+func (g Graph) PNG(w io.Writer) error { return g.picture().PNG(w) }
+
+// graphFormats are the values of --format, and the file extensions --out
+// picks them from.
+var graphFormats = map[string]string{
+	".mmd": "mermaid", ".mermaid": "mermaid", ".dot": "dot", ".gv": "dot", ".json": "json", ".svg": "svg", ".png": "png",
+}
+
 func (a *app) newGraphCmd() *cobra.Command {
-	var format string
+	var format, out string
 	var withDLQ bool
 	cmd := &cobra.Command{
 		Use:   "graph",
@@ -322,34 +361,54 @@ func (a *app) newGraphCmd() *cobra.Command {
 			"route at the destinations it may pick, and every destination at its fallbacks.\n" +
 			"A shadow destination and a fallback are dashed lines.\n\n" +
 			"The default output is a Mermaid flowchart, which GitHub renders inside a\n" +
-			"```mermaid block. --format dot is for Graphviz, and --format json is the same\n" +
-			"graph as data. Nothing is connected to and no secret is read.",
+			"```mermaid block. --format svg and --format png draw the same diagram as a\n" +
+			"picture, with no other tool. --format dot is for Graphviz, and --format json is\n" +
+			"the same graph as data. --out writes a file, and picks the format from its\n" +
+			"extension. Nothing is connected to and no secret is read.",
 		Example: "  hikyaku graph > relay.mmd\n" +
-			"  hikyaku graph --format dot | dot -Tsvg > relay.svg\n" +
-			"  hikyaku graph --dead-letter",
+			"  hikyaku graph --out relay.svg\n" +
+			"  hikyaku graph --out relay.png --dead-letter\n" +
+			"  hikyaku graph --format dot | dot -Tpdf > relay.pdf",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !slices.Contains([]string{"mermaid", "dot", "json"}, format) {
-				return usageError(fmt.Errorf("--format %q: want mermaid, dot or json", format))
+			if !cmd.Flags().Changed("format") && out != "" {
+				if f, ok := graphFormats[strings.ToLower(filepath.Ext(out))]; ok {
+					format = f
+				}
+			}
+			if !slices.Contains([]string{"mermaid", "dot", "json", "svg", "png"}, format) {
+				return usageError(fmt.Errorf("--format %q: want mermaid, svg, png, dot or json", format))
 			}
 			l, err := a.load(cmd.Context(), false)
 			if err != nil {
 				return err
 			}
 			g := buildGraph(l.Spec, withDLQ)
-			w := cmd.OutOrStdout()
+			var b bytes.Buffer
 			switch format {
 			case "dot":
-				g.Dot(w)
+				g.Dot(&b)
 			case "json":
-				return printJSON(w, g)
+				err = printJSON(&b, g)
+			case "svg":
+				err = g.SVG(&b)
+			case "png":
+				err = g.PNG(&b)
 			default:
-				g.Mermaid(w)
+				g.Mermaid(&b)
 			}
-			return nil
+			if err != nil {
+				return err
+			}
+			if out != "" {
+				return os.WriteFile(out, b.Bytes(), 0o644)
+			}
+			_, err = cmd.OutOrStdout().Write(b.Bytes())
+			return err
 		},
 	}
-	cmd.Flags().StringVar(&format, "format", "mermaid", "output: mermaid, dot or json")
+	cmd.Flags().StringVar(&format, "format", "mermaid", "output: mermaid, svg, png, dot or json")
+	cmd.Flags().StringVar(&out, "out", "", "write to this file instead of stdout; its extension picks the format when --format is not set")
 	cmd.Flags().BoolVar(&withDLQ, "dead-letter", false, "draw the dead-letter queue too")
 	return cmd
 }

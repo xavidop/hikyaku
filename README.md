@@ -123,7 +123,7 @@ hikyaku run [--watch]                         run the relay; SIGHUP, POST /reloa
 hikyaku dev                                   run with the Genkit reflection server: genkit start -- hikyaku dev
 hikyaku validate [--check-secrets]            check the spec: references, fallback cycles, CEL, templates
 hikyaku lint [--strict]                       warn about unpinned models, missing fallbacks, open endpoints
-hikyaku graph [--format mermaid|dot|json]     draw the spec: sources, routes, destinations and fallbacks
+hikyaku graph [--format svg|png|dot|json]     draw the spec: sources, routes, destinations and fallbacks
 hikyaku test [files...]                       check that test messages are routed and transformed as expected
 hikyaku init [--template T]                   scaffold webhook-fanout, ai-triage, wss-to-http or kafka-bridge
 hikyaku schema                                print the JSON Schema
