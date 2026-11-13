@@ -370,6 +370,12 @@ func (v *validator) sources() map[string]bool {
 		if src.Ack == "accepted" && src.Respond != nil {
 			v.add(p+".respond", "needs ack: delivered (a reply exists only once the message is delivered)")
 		}
+		if src.OAuth2 != nil {
+			if (src.Type != "http" && src.Type != "https") || src.Mode != "poll" {
+				v.add(p+".oauth2", "applies to http and https sources in poll mode (a listen source checks its callers with auth)")
+			}
+			v.oauth2(p, src.OAuth2, src.Headers)
+		}
 		if src.Split != "" && src.Mode != "poll" {
 			v.add(p+".split", "applies to poll sources only")
 		}
@@ -694,34 +700,11 @@ func (v *validator) endpoint(p string, e Endpoint) {
 		v.add(p+".compression", "must be gzip or none for an http destination")
 	}
 	v.smtp(p, e)
-	if o := e.OAuth2; o != nil {
+	if e.OAuth2 != nil {
 		if e.Type != "http" && e.Type != "https" {
 			v.add(p+".oauth2", "applies to http and https destinations")
 		}
-		if o.TokenURL == "" {
-			v.add(p+".oauth2.token_url", "is required")
-		} else if u, err := url.Parse(o.TokenURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			v.add(p+".oauth2.token_url", "must be an http or https URL")
-		}
-		if o.ClientID == "" {
-			v.add(p+".oauth2.client_id", "is required")
-		}
-		if o.ClientSecret == "" {
-			v.add(p+".oauth2.client_secret", "is required")
-		}
-		if o.ClientAuth != "" && o.ClientAuth != "basic" && o.ClientAuth != "body" {
-			v.add(p+".oauth2.client_auth", "must be basic or body")
-		}
-		for k := range o.Params {
-			if k == "grant_type" || k == "client_id" || k == "client_secret" {
-				v.add(p+".oauth2.params."+k, "is set by hikyaku")
-			}
-		}
-		for k := range e.Headers {
-			if strings.EqualFold(k, "Authorization") {
-				v.add(p+".headers."+k, "does not go with oauth2, which sets this header")
-			}
-		}
+		v.oauth2(p, e.OAuth2, e.Headers)
 	}
 	if sg := e.Sign; sg != nil {
 		if e.Type != "http" && e.Type != "https" {
@@ -1144,5 +1127,34 @@ func (v *validator) process() {
 	case "", "json", "text":
 	default:
 		v.add("observability.logs.format", "must be json or text")
+	}
+}
+
+// oauth2 checks an oauth2 block (an http destination's, or an http poll
+// source's) and the headers next to it.
+func (v *validator) oauth2(p string, o *OAuth2, headers map[string]string) {
+	if o.TokenURL == "" {
+		v.add(p+".oauth2.token_url", "is required")
+	} else if u, err := url.Parse(o.TokenURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		v.add(p+".oauth2.token_url", "must be an http or https URL")
+	}
+	if o.ClientID == "" {
+		v.add(p+".oauth2.client_id", "is required")
+	}
+	if o.ClientSecret == "" {
+		v.add(p+".oauth2.client_secret", "is required")
+	}
+	if o.ClientAuth != "" && o.ClientAuth != "basic" && o.ClientAuth != "body" {
+		v.add(p+".oauth2.client_auth", "must be basic or body")
+	}
+	for k := range o.Params {
+		if k == "grant_type" || k == "client_id" || k == "client_secret" {
+			v.add(p+".oauth2.params."+k, "is set by hikyaku")
+		}
+	}
+	for k := range headers {
+		if strings.EqualFold(k, "Authorization") {
+			v.add(p+".headers."+k, "does not go with oauth2, which sets this header")
+		}
 	}
 }

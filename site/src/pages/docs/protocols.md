@@ -210,6 +210,10 @@ Each poll sends `method` (default `GET`) to `url`, with `headers` and an optiona
 `interval`. Each poll retries per `retry` (`retry_on`, `never_on` and `respect_retry_after` work
 as for a destination), then waits for the next interval.
 
+For an API that wants an OAuth 2.0 token, add an
+[`oauth2`](/docs/security/#oauth-20-for-polls) block: the source fetches the token and sends
+it on every poll.
+
 Polls are conditional, so an unchanged response makes no message: after a `2xx`, hikyaku sends
 the response's `ETag` and `Last-Modified` back as `If-None-Match` and `If-Modified-Since`, and a
 `304 Not Modified` makes no message. `split` is a jq expression that turns one JSON response into

@@ -2638,6 +2638,10 @@
           "type": "object",
           "description": "poll or subscribe: request headers."
         },
+        "oauth2": {
+          "$ref": "#/$defs/OAuth2",
+          "description": "http poll: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token on every poll."
+        },
         "method": {
           "type": "string",
           "description": "poll: request method (default GET)."
