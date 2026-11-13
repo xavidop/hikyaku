@@ -148,7 +148,7 @@ Exit `0` with warnings, `2` when the spec is invalid.
 ## hikyaku graph
 
 ```sh
-hikyaku graph [--format mermaid|dot|json] [--dead-letter]
+hikyaku graph [--format mermaid|svg|png|dot|json] [--out file] [--dead-letter]
 ```
 
 `hikyaku graph` draws the spec as a diagram, so you can see where a message may go:
@@ -166,7 +166,9 @@ The command reads the spec only. It connects to nothing and reads no secret.
 
 ```sh
 hikyaku graph > relay.mmd                           # a Mermaid flowchart
-hikyaku graph --format dot | dot -Tsvg > relay.svg  # with Graphviz
+hikyaku graph --out relay.svg                       # a picture, as an SVG
+hikyaku graph --out relay.png                       # the same picture, as a PNG
+hikyaku graph --format dot | dot -Tpdf > relay.pdf  # with Graphviz
 ```
 
 The default output is a [Mermaid](https://mermaid.js.org) flowchart. GitHub and many
@@ -189,9 +191,21 @@ flowchart LR
 Sources are rounded, routes are hexagons, destinations are boxes, and the dead-letter queue
 is a cylinder.
 
+`--format svg` and `--format png` draw the same diagram as a picture. hikyaku draws it
+itself, so you need no browser, no Node.js and no Graphviz. This is the spec above, as
+`hikyaku graph --out relay.svg` draws it:
+
+![The example spec as a picture: the stripe source points at the payments route, which points at billing, audit and spool. The lines to audit and from billing to spool are dashed.](/graph-example.svg)
+
+The picture is not Mermaid's own drawing: the shapes and the lines are the same, but the
+layout and the colors are hikyaku's. A PNG is twice the size of the SVG, so it stays sharp
+on a dense screen. Its text is drawn with a font inside the binary that has Latin, Greek and
+Cyrillic letters; for a name in another script, use the SVG.
+
 | Flag | Meaning |
 |---|---|
-| `--format` | `mermaid` (default), `dot` for Graphviz, or `json` for the nodes and edges as data. |
+| `--format` | `mermaid` (default), `svg` or `png` for a picture, `dot` for Graphviz, or `json` for the nodes and edges as data. |
+| `--out` | Write to this file instead of the standard output. When `--format` is not set, the file's extension picks the format: `.svg`, `.png`, `.dot`, `.gv`, `.json`, `.mmd` or `.mermaid`. Any other extension is a Mermaid flowchart. |
 | `--dead-letter` | Draw the dead-letter queue too, with a line from every required destination at the end of a fallback chain. |
 
 ## hikyaku test

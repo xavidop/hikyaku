@@ -2,6 +2,11 @@ package cli_test
 
 import (
 	"encoding/json"
+	"encoding/xml"
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,7 +121,58 @@ func TestGraphDot(t *testing.T) {
 	assert.Contains(t, out, `[shape=hexagon, label="triage\nai → static"]`)
 	assert.Contains(t, out, `[label="fallback", style=dashed]`)
 
-	code, _, errOut = run(t, dir, "graph", "--format", "png")
+	code, _, errOut = run(t, dir, "graph", "--format", "pdf")
 	assert.Equal(t, 2, code)
-	assert.Contains(t, errOut, "mermaid, dot or json")
+	assert.Contains(t, errOut, "mermaid, svg, png, dot or json")
+}
+
+func TestGraphSVGAndPNG(t *testing.T) {
+	dir := writeSpec(t, graphSpec)
+	code, out, errOut := run(t, dir, "graph", "--format", "svg", "--dead-letter")
+	require.Equal(t, 0, code, errOut)
+	require.NoError(t, xml.Unmarshal([]byte(out), new(struct{})), "the picture is well-formed XML")
+	assert.Contains(t, out, "<title>shop</title>")
+	for _, want := range []string{
+		">triage</text>", ">ai → static</text>", // a route and its router chain
+		">failover group of 2 fault</text>", // a group
+		">shadow 5%</text>",                 // an edge's label
+		">dead_letter</text>",
+	} {
+		assert.Contains(t, out, want)
+	}
+	// billing → spool, triage → quarantine, copy → audit, the three chains
+	// that end in the queue (spool, support, crm), and the queue's last resort.
+	assert.Equal(t, 7, strings.Count(out, "stroke-dasharray"))
+
+	code, out, errOut = run(t, dir, "graph", "--format", "png")
+	require.Equal(t, 0, code, errOut)
+	img, err := png.Decode(strings.NewReader(out))
+	require.NoError(t, err)
+	assert.Greater(t, img.Bounds().Dx(), img.Bounds().Dy(), "the diagram goes left to right")
+}
+
+// --out writes a file, and its extension picks the format unless --format
+// says otherwise.
+func TestGraphOut(t *testing.T) {
+	dir := writeSpec(t, graphSpec)
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		require.NoError(t, err)
+		return string(b)
+	}
+	for name, prefix := range map[string]string{
+		"relay.svg": "<svg ", "relay.PNG": "\x89PNG\r\n", "relay.dot": "digraph ", "relay.json": "{", "relay.mmd": "flowchart LR", "relay.txt": "flowchart LR",
+	} {
+		code, out, errOut := run(t, dir, "graph", "--out", name)
+		require.Equal(t, 0, code, errOut)
+		assert.Empty(t, out, "nothing goes to stdout")
+		assert.True(t, strings.HasPrefix(read(name), prefix), name)
+	}
+
+	code, _, errOut := run(t, dir, "graph", "--format", "dot", "--out", "forced.svg")
+	require.Equal(t, 0, code, errOut)
+	assert.True(t, strings.HasPrefix(read("forced.svg"), "digraph "))
+
+	code, _, _ = run(t, dir, "graph", "--out", filepath.Join("missing", "relay.svg"))
+	assert.NotEqual(t, 0, code)
 }

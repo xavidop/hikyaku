@@ -1158,7 +1158,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Apache-2.0
 
-Covers: github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/getsops/gopgagent v0.0.0-20241224165529-7044f28e491e, github.com/go-logr/stdr v1.2.2, github.com/go-openapi/jsonpointer v1.0.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee, github.com/nats-io/nats.go v1.55.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/oklog/ulid/v2 v2.1.2, github.com/prometheus/client_golang/prometheus v1.25.0, github.com/prometheus/client_model/go v0.6.3, github.com/prometheus/common v0.72.0, github.com/spiffe/go-spiffe/v2 v2.8.1, go.mongodb.org/mongo-driver v1.17.10, go.opentelemetry.io/auto/sdk v1.2.1, go.opentelemetry.io/proto/otlp v1.11.0.
+Covers: github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/getsops/gopgagent v0.0.0-20241224165529-7044f28e491e, github.com/go-logr/stdr v1.2.2, github.com/go-openapi/jsonpointer v1.0.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee, github.com/nats-io/nats.go v1.55.0, github.com/nats-io/nkeys v0.4.17, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/oklog/ulid/v2 v2.1.2, github.com/prometheus/client_golang/prometheus v1.25.0, github.com/prometheus/client_model/go v0.6.3, github.com/prometheus/common v0.72.0, github.com/spiffe/go-spiffe/v2 v2.8.1, go.mongodb.org/mongo-driver v1.17.10, go.opentelemetry.io/auto/sdk v1.2.1, go.opentelemetry.io/proto/otlp v1.11.0.
 
 ```text
                                  Apache License
@@ -3104,7 +3104,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### Apache-2.0
 
-Covers: github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be, github.com/go-logr/logr v1.4.4, github.com/pb33f/ordered-map/v2 v2.3.1, github.com/tjfoc/gmsm v1.4.1, go.yaml.in/yaml/v2 v2.4.4, sigs.k8s.io/structured-merge-diff/v6 v6.4.2.
+Covers: github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be, github.com/go-logr/logr v1.4.4, github.com/pb33f/ordered-map/v2 v2.3.2, github.com/tjfoc/gmsm v1.4.1, go.yaml.in/yaml/v2 v2.4.4, sigs.k8s.io/structured-merge-diff/v6 v6.4.2.
 
 ```text
                                  Apache License
@@ -3521,7 +3521,7 @@ Covers: sigs.k8s.io/randfill v1.0.0.
 
 ### Apache-2.0
 
-Covers: go.yaml.in/yaml/v4 v4.0.0-rc.4.
+Covers: github.com/pb33f/go-yaml v0.1.0.
 
 ```text
 
@@ -3928,7 +3928,7 @@ third-party archives.
 
 ### Apache-2.0
 
-Covers: cel.dev/expr v0.25.3, cloud.google.com/go v0.123.0, cloud.google.com/go/auth v0.24.1, cloud.google.com/go/auth/oauth2adapt v0.3.1, cloud.google.com/go/compute/metadata v0.10.0, cloud.google.com/go/iam v1.14.0, cloud.google.com/go/kms v1.32.0, cloud.google.com/go/longrunning v1.3.0, cloud.google.com/go/monitoring v1.30.0, cloud.google.com/go/pubsub/v2 v2.8.1, cloud.google.com/go/secretmanager v1.23.1, cloud.google.com/go/storage v1.70.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.58.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.58.0, github.com/aws/aws-sdk-go-v2 v1.47.8, github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.26, github.com/aws/aws-sdk-go-v2/config v1.33.16, github.com/aws/aws-sdk-go-v2/credentials v1.20.16, github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.8, github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.34, github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.11, github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.11, github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.11, github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.32.4, github.com/aws/aws-sdk-go-v2/service/eventbridge v1.55.10, github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24, github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.12, github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.11, github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.11, github.com/aws/aws-sdk-go-v2/service/kms v1.54.1, github.com/aws/aws-sdk-go-v2/service/s3 v1.114.9, github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.5, github.com/aws/aws-sdk-go-v2/service/signin v1.12.4, github.com/aws/aws-sdk-go-v2/service/sns v1.47.10, github.com/aws/aws-sdk-go-v2/service/sqs v1.52.11, github.com/aws/aws-sdk-go-v2/service/ssm v1.80.0, github.com/aws/aws-sdk-go-v2/service/sso v1.39.4, github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.4, github.com/aws/aws-sdk-go-v2/service/sts v1.51.9, github.com/envoyproxy/protoc-gen-validate/validate v1.3.3, github.com/firebase/genkit/go v1.14.0, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-openapi/jsonreference v1.0.1, github.com/go-openapi/swag v0.29.2, github.com/go-openapi/swag/cmdutils v0.29.2, github.com/go-openapi/swag/conv v0.29.2, github.com/go-openapi/swag/fileutils v0.29.2, github.com/go-openapi/swag/jsonutils v0.29.2, github.com/go-openapi/swag/loading v0.29.2, github.com/go-openapi/swag/mangling v0.29.2, github.com/go-openapi/swag/netutils v0.29.2, github.com/go-openapi/swag/pools v0.29.2, github.com/go-openapi/swag/stringutils v0.29.2, github.com/go-openapi/swag/typeutils v0.29.2, github.com/go-openapi/swag/yamlutils v0.29.2, github.com/google/s2a-go v0.1.11, github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510, github.com/googleapis/enterprise-certificate-proxy/client v0.3.24, github.com/kylelemons/godebug v1.1.0, google.golang.org/genproto/googleapis v0.0.0-20261012220534-4341edf3f941, google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941, google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab, google.golang.org/grpc v1.85.0, k8s.io/api v0.37.1, k8s.io/apimachinery/pkg v0.37.1, k8s.io/client-go v0.37.1, k8s.io/kube-openapi/pkg v0.0.0-20260721132016-d427ff9ee9ad, k8s.io/kube-openapi/pkg/validation/spec v0.0.0-20260721132016-d427ff9ee9ad, k8s.io/utils v0.0.0-20260626114624-be93311217bd.
+Covers: cel.dev/expr v0.25.3, cloud.google.com/go v0.123.0, cloud.google.com/go/auth v0.24.1, cloud.google.com/go/auth/oauth2adapt v0.3.1, cloud.google.com/go/compute/metadata v0.10.0, cloud.google.com/go/iam v1.14.0, cloud.google.com/go/kms v1.32.0, cloud.google.com/go/longrunning v1.3.0, cloud.google.com/go/monitoring v1.30.0, cloud.google.com/go/pubsub/v2 v2.8.1, cloud.google.com/go/secretmanager v1.23.1, cloud.google.com/go/storage v1.70.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.58.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.58.0, github.com/aws/aws-sdk-go-v2 v1.47.8, github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.26, github.com/aws/aws-sdk-go-v2/config v1.33.16, github.com/aws/aws-sdk-go-v2/credentials v1.20.16, github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.8, github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.34, github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.11, github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.11, github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.11, github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.32.4, github.com/aws/aws-sdk-go-v2/service/eventbridge v1.55.10, github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24, github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.12, github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.11, github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.11, github.com/aws/aws-sdk-go-v2/service/kms v1.54.1, github.com/aws/aws-sdk-go-v2/service/s3 v1.114.9, github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.5, github.com/aws/aws-sdk-go-v2/service/signin v1.12.4, github.com/aws/aws-sdk-go-v2/service/sns v1.47.10, github.com/aws/aws-sdk-go-v2/service/sqs v1.52.11, github.com/aws/aws-sdk-go-v2/service/ssm v1.80.0, github.com/aws/aws-sdk-go-v2/service/sso v1.39.4, github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.4, github.com/aws/aws-sdk-go-v2/service/sts v1.51.9, github.com/envoyproxy/protoc-gen-validate/validate v1.3.3, github.com/firebase/genkit/go v1.14.0, github.com/go-jose/go-jose/v4 v4.1.6, github.com/go-openapi/jsonreference v1.0.1, github.com/go-openapi/swag v0.29.2, github.com/go-openapi/swag/cmdutils v0.29.2, github.com/go-openapi/swag/conv v0.29.2, github.com/go-openapi/swag/fileutils v0.29.2, github.com/go-openapi/swag/jsonutils v0.29.2, github.com/go-openapi/swag/loading v0.29.2, github.com/go-openapi/swag/mangling v0.29.2, github.com/go-openapi/swag/netutils v0.29.2, github.com/go-openapi/swag/pools v0.29.2, github.com/go-openapi/swag/stringutils v0.29.2, github.com/go-openapi/swag/typeutils v0.29.2, github.com/go-openapi/swag/yamlutils v0.29.2, github.com/google/s2a-go v0.1.11, github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510, github.com/googleapis/enterprise-certificate-proxy/client v0.3.24, github.com/kylelemons/godebug v1.1.0, google.golang.org/genproto/googleapis v0.0.0-20261012220534-4341edf3f941, google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941, google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab, google.golang.org/grpc v1.85.0, k8s.io/api v0.37.1, k8s.io/apimachinery/pkg v0.37.1, k8s.io/client-go v0.37.1, k8s.io/kube-openapi/pkg v0.0.0-20260721132016-d427ff9ee9ad, k8s.io/kube-openapi/pkg/validation/spec v0.0.0-20260721132016-d427ff9ee9ad, k8s.io/utils v0.0.0-20260626114624-be93311217bd.
 
 ```text
 
@@ -4382,7 +4382,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Apache-2.0
 
-Covers: github.com/openai/openai-go v1.8.2.
+Covers: github.com/openai/openai-go v1.12.0.
 
 ```text
                                  Apache License
@@ -5270,7 +5270,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD-3-Clause
 
-Covers: filippo.io/hpke v0.4.0, golang.org/x/crypto v0.58.0, golang.org/x/exp/slices v0.0.0-20250408133849-7e4ce0ab07d0, golang.org/x/net v0.62.0, golang.org/x/oauth2 v0.37.0, golang.org/x/sync v0.24.0, golang.org/x/sys v0.49.0, golang.org/x/term v0.47.0, golang.org/x/text v0.43.0, golang.org/x/time/rate v0.16.0.
+Covers: filippo.io/hpke v0.4.0, golang.org/x/crypto v0.58.0, golang.org/x/exp/slices v0.0.0-20250408133849-7e4ce0ab07d0, golang.org/x/image v0.48.0, golang.org/x/net v0.62.0, golang.org/x/oauth2 v0.37.0, golang.org/x/sync v0.25.0, golang.org/x/sys v0.50.0, golang.org/x/term v0.47.0, golang.org/x/text v0.44.0, golang.org/x/time/rate v0.16.0.
 
 ```text
 Copyright 2009 The Go Authors.
@@ -5505,7 +5505,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD-3-Clause
 
-Covers: github.com/spf13/pflag v1.0.10.
+Covers: github.com/spf13/pflag v1.1.0.
 
 ```text
 Copyright (c) 2012 Alex Ogier. All rights reserved.
@@ -5740,7 +5740,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD-3-Clause
 
-Covers: github.com/go-jose/go-jose/v4/json v4.1.4, k8s.io/utils/internal/third_party/forked/golang/net v0.0.0-20260626114624-be93311217bd.
+Covers: github.com/go-jose/go-jose/v4/json v4.1.6, k8s.io/utils/internal/third_party/forked/golang/net v0.0.0-20260626114624-be93311217bd.
 
 ```text
 Copyright (c) 2012 The Go Authors. All rights reserved.
@@ -12069,6 +12069,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+### github.com/pb33f/go-yaml v0.1.0
+
+```text
+The following files were ported to Go from C files of libyaml, and thus are
+still covered by their original MIT license, with the additional copyright
+starting in 2011 when the project was ported over:
+
+- internal/libyaml/api.go
+- internal/libyaml/emitter.go
+- internal/libyaml/parser.go
+- internal/libyaml/reader.go
+- internal/libyaml/scanner.go
+- internal/libyaml/writer.go
+- internal/libyaml/yaml.go
+- internal/libyaml/yamlprivate.go
+
+Copyright 2006-2010 Kirill Simonov
+https://opensource.org/license/mit
+
+All the remaining project files are covered by the Apache license:
+
+Copyright 2011-2019 Canonical Ltd
+Copyright 2025 The go-yaml Project Contributors
+http://www.apache.org/licenses/LICENSE-2.0
+```
+
 ### github.com/prometheus/client_golang/prometheus v1.25.0
 
 ```text
@@ -12146,32 +12172,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-```
-
-### go.yaml.in/yaml/v4 v4.0.0-rc.4
-
-```text
-The following files were ported to Go from C files of libyaml, and thus are
-still covered by their original MIT license, with the additional copyright
-starting in 2011 when the project was ported over:
-
-- internal/libyaml/api.go
-- internal/libyaml/emitter.go
-- internal/libyaml/parser.go
-- internal/libyaml/reader.go
-- internal/libyaml/scanner.go
-- internal/libyaml/writer.go
-- internal/libyaml/yaml.go
-- internal/libyaml/yamlprivate.go
-
-Copyright 2006-2010 Kirill Simonov
-https://opensource.org/license/mit
-
-All the remaining project files are covered by the Apache license:
-
-Copyright 2011-2019 Canonical Ltd
-Copyright 2025 The go-yaml Project Contributors
-http://www.apache.org/licenses/LICENSE-2.0
 ```
 
 ### google.golang.org/grpc v1.85.0

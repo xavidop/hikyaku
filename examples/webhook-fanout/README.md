@@ -20,7 +20,8 @@ Two specs ship with the example:
 hikyaku test
 ```
 
-To see the spec as a diagram, run `hikyaku graph`.
+To see the spec as a diagram, run `hikyaku graph`. `hikyaku graph --out relay.svg` saves it
+as a picture.
 
 ## Run it offline
 
