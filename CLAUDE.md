@@ -151,8 +151,12 @@ These record where the build departs from the design, and the decisions the desi
   - A reload keeps the AI factory while `genkit:`, the model providers and the secret values stay the same (`sameAI`). Otherwise it builds a new factory, a new Genkit instance, next to the running one. The old one's context ends once the old engine has stopped.
   - A new `server.admin.listen` is bound before the swap, and the old server shuts down after it, answering the `POST /reload` in flight. On the same address, `admin.Server.Configure` applies the new token, readiness and metrics options. Every admin server shares the relay's hub.
   - `needs_restart` is left for one case: `GENKIT_REFLECTION_PORT` pins the Dev UI's reflection port, so a second Genkit instance cannot start (`llm/devui.go`).
+- **Gemini Decision 1 (owner, 2026-11-13):** it is reached through OpenRouter, as `openrouter-decisions/google/gemini-decision-1`, with Genkit's own `OpenRouter()` server and no code of ours.
+  - There is no `googleai` decision server. The Gemini API's `/v1beta/decisions` is not the native protocol (`input` instead of `state`, `true_description`/`false_description` for a yes/no question, the key in `x-goog-api-key` and no bearer key), and Genkit has no constructor for it. The owner wants no translation hooks (`Route`, `Unwrap`) of ours in `llm/`: wait for Genkit's.
+  - A question ID may hold only `[A-Za-z0-9_-]`, so `multi: true` refuses a candidate whose name has a dot (HTTP 400). The docs say so; nothing validates it.
 - **Real-model checks:** the ai-triage example was tuned with `hikyaku ai test` on TypeSafe `jev-1.13.0`. The real-model suites are build-tagged `integration` and skip without their env:
   - `TYPESAFE_API_KEY` for TypeSafe;
+  - `OPENROUTER_API_KEY` for Gemini Decision 1 through OpenRouter;
   - `HIKYAKU_OLLAMA_URL` for Ollama (`HIKYAKU_OLLAMA_DECISION_MODEL`, since clef is about 20 GB);
   - `HIKYAKU_AZURE_EMULATORS=1` for the Azure emulators.
   No CI job uses a model key (owner, 2026-11-09): the repository has no real-model workflow or secret, and the TypeSafe suite runs only on a machine whose environment has the key. CI evaluates on llmfake.
