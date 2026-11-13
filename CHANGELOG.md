@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+## [1.6.1](https://github.com/xavidop/hikyaku/compare/v1.6.0...v1.6.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* send Gemini its generation config as a map ([#25](https://github.com/xavidop/hikyaku/issues/25)) ([3135092](https://github.com/xavidop/hikyaku/commit/3135092bd2ee4157e636c3456a58a4e2740fc353))
+
 # [1.6.0](https://github.com/xavidop/hikyaku/compare/v1.5.1...v1.6.0) (2026-11-13)
 
 
