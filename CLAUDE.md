@@ -87,6 +87,8 @@ These record where the build departs from the design, and the decisions the desi
 - **`hikyaku test`:** `internal/cli/spectest.go`.
   - Every test builds an engine of its own with `engine.Options.Sinks` (a stand-in for every endpoint, member and dead-letter hop, so the real sink is never built) and `Options.NoWait` (no backoff, hold, rate-limit wait; a batch closes after 1ms). Stores are memory stores passed through `Options.Stores`.
   - `decide` replaces a route's router through `Options.Routers`. An AI route the test's source cannot reach gets a router that is never called, so the AI factory and the secrets are loaded only when a selected test leaves a reachable AI route to its model.
+  - `enrich` in a test file answers enrich calls through `engine.Options.Enrich` (`transform.Options.Enrich`): no request is ever made, and a call with no entry fails the test.
+  - A filter that cannot be evaluated fails the test unless `expect.filter_errors` is true.
   - A stand-in sees the envelope after the destination's transforms, not what the sink would render (`url`, `headers`, `body` templates).
   - `config.ExpandPaths` skips `*.test.yaml` and `*.test.yml` in a spec directory (`config.IsTestFile`).
 - **`hikyaku forward`:** `internal/cli/forward.go`. It is a client of `/v1/tail` only (no new admin endpoint): one request per `received` event, at most 8 at once. A stream that never opened ends the command; one that ends later is opened again.

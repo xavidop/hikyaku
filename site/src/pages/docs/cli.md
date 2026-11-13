@@ -265,6 +265,7 @@ A test has these keys:
 | `headers`, `attributes`, `subject`, `content_type`, `id` | The rest of the message, as a source would set it. |
 | `down` | Destinations, group members or `dead_letter` that cannot be reached in this test: every delivery to one fails. |
 | `decide` | Answer for a route's router: `decide: { triage: [support] }`. See below. |
+| `enrich` | Answers for the calls of `enrich` steps. See below. |
 | `expect` | What must happen. A key you leave out is not checked. |
 
 `expect` has these keys:
@@ -278,6 +279,7 @@ A test has these keys:
 | `failed` | Every destination whose delivery failed, in any order. |
 | `delivered` | What a destination got, by destination name. |
 | `routes` | What one route did, by route name: `filtered`, `to`, `router` (the router that decided) and `error` (a part of the route's error). |
+| `filter_errors` | `true` allows a filter that cannot be evaluated for the message. See below. |
 
 Under `delivered`, each destination has these keys:
 
@@ -316,7 +318,49 @@ Secrets are read only when a test calls a model. A spec whose AI routes are all 
 for, or that has none, is tested without any secret or key. To score the model's own answers
 on labeled cases, use [`hikyaku ai test`](#hikyaku-ai-test).
 
-An `enrich` step is not replaced: it calls its URL in a test too.
+### Enrich calls
+
+An [`enrich`](/docs/transforms/#enrich) step makes no request in a test. Give the answer of
+each call with `enrich`: at the top of the file for every test, or inside one test. An entry
+of a test comes before the entries of the file, and the first entry whose `url` matches
+answers.
+
+```yaml
+enrich:
+  - url: "https://crm.example.com/customers/*"   # * stands for any run of characters
+    answer: { tier: free }
+tests:
+  - name: a gold customer goes to the priority queue
+    source: in
+    body: { customer_id: c42 }
+    enrich:
+      - { url: "https://crm.example.com/customers/c42", answer: { tier: gold } }
+    expect: { to: [priority] }
+  - name: the order is dead-lettered when the CRM is down
+    source: in
+    body: { customer_id: c7 }
+    enrich:
+      - { url: "https://crm.example.com/customers/c7", error: status 503 }
+    expect: { status: dead_lettered }
+```
+
+| Key | Meaning |
+|---|---|
+| `url` | The URL the step calls, after its template is filled in. A `*` stands for any run of characters. Required. |
+| `answer` | The JSON the call returns. |
+| `error` | Make the call fail with this text. With `on_error: skip` the message goes on without the answer. |
+
+A call that no entry answers fails, and the test fails with the method and the URL of the
+call, so a test never reaches a real server.
+
+### Filters that cannot be evaluated
+
+A filter that cannot be evaluated for a message, for example because it reads a key the
+message does not have, [keeps the message](/docs/transforms/#filter-cel). In a test that is a
+failure: the message got through for a reason the spec does not say. The failure names the
+route or the destination and gives the error.
+
+When the message is meant to get through that way, set `filter_errors: true` under `expect`.
 
 Exit `0` when every test passes, `1` when a test fails or no test ran, `2` when the spec or a
 test file is invalid.

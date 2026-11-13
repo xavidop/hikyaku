@@ -59,6 +59,9 @@ type Options struct {
 	// deliver_after or deliver_at hold, no wait for a rate limit, and a
 	// batch closes at once.
 	NoWait bool
+	// Enrich answers the calls of every enrich transform (hikyaku test):
+	// no HTTP request is made.
+	Enrich func(transform.EnrichCall) (any, error)
 	// NoSources builds the engine without its sources: for send, route and
 	// dlq replay, which inject messages themselves.
 	NoSources bool
@@ -673,5 +676,6 @@ func (e *Engine) Buffer() chan<- *envelope.Envelope { return e.buffer }
 func (e *Engine) transformOptions() transform.Options {
 	return transform.Options{
 		Egress: plugin.Egress{Allow: e.spec.Egress.Allow, AllowPrivate: e.spec.Egress.AllowPrivate},
+		Enrich: e.opts.Enrich,
 	}
 }

@@ -35,6 +35,19 @@ const (
 type Options struct {
 	// Egress guards the enrich calls whose URL is a per-message template.
 	Egress plugin.Egress
+	// Enrich answers every enrich call in place of the HTTP request
+	// (hikyaku test): nothing is sent.
+	Enrich func(EnrichCall) (any, error)
+}
+
+// EnrichCall is the request of one enrich call: what Options.Enrich
+// answers.
+type EnrichCall struct {
+	Method  string
+	URL     string
+	Headers map[string]string
+	// Body is the message body, for a POST.
+	Body []byte
 }
 
 // EnrichStep calls an HTTP endpoint and puts its JSON answer into the JSON
@@ -49,6 +62,7 @@ type EnrichStep struct {
 	client  *http.Client
 	guard   *egress.Guard // set for a templated URL
 	cache   *enrichCache  // nil without cache
+	answer  func(EnrichCall) (any, error)
 }
 
 func compileEnrich(p string, spec *config.Enrich, o Options) (*EnrichStep, error) {
@@ -64,7 +78,7 @@ func compileEnrich(p string, spec *config.Enrich, o Options) (*EnrichStep, error
 	}
 	s := &EnrichStep{
 		url: u, method: firstNonEmpty(spec.Method, http.MethodGet), into: strings.Split(spec.Into, "."),
-		timeout: spec.Timeout.Std(), skip: spec.OnError == "skip", headers: map[string]*Template{},
+		timeout: spec.Timeout.Std(), skip: spec.OnError == "skip", headers: map[string]*Template{}, answer: o.Enrich,
 	}
 	if s.method != http.MethodGet && s.method != http.MethodPost {
 		return nil, fmt.Errorf("method %q: use GET or POST", spec.Method)
@@ -170,6 +184,13 @@ func (s *EnrichStep) lookup(env *envelope.Envelope) (any, error) {
 }
 
 func (s *EnrichStep) call(target string, headers map[string]string, env *envelope.Envelope) (any, error) {
+	if s.answer != nil {
+		c := EnrichCall{Method: s.method, URL: target, Headers: headers}
+		if s.method == http.MethodPost {
+			c.Body = env.Body
+		}
+		return s.answer(c)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	var body io.Reader
