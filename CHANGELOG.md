@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.7.0](https://github.com/xavidop/hikyaku/compare/v1.6.1...v1.7.0) (2026-11-13)
+
+
+### Features
+
+* hikyaku graph draws an SVG or a PNG ([#26](https://github.com/xavidop/hikyaku/issues/26)) ([993328b](https://github.com/xavidop/hikyaku/commit/993328b1b7e34af98685a7059e59c9c0e2fcb127))
+
 ## [1.6.1](https://github.com/xavidop/hikyaku/compare/v1.6.0...v1.6.1) (2026-11-13)
 
 
