@@ -505,6 +505,9 @@ func TestProviderConfig(t *testing.T) {
 	assert.Equal(t, map[string]any{"temperature": 0.2, "top_p": 0.9, "max_tokens": 64, "stop_sequences": []string{"END"}}, providerConfig("anthropic/claude-sonnet-4-5", c))
 	assert.Equal(t, map[string]any{"temperature": 0.2, "top_p": 0.9, "max_completion_tokens": 64, "stop": []string{"END"}}, providerConfig("openai/gpt-4o-mini", c))
 	assert.Equal(t, map[string]any{"temperature": 0.2, "topP": 0.9, "maxOutputTokens": 64, "stopSequences": []string{"END"}}, providerConfig("openrouter/anthropic/claude-sonnet-4.5", c))
-	assert.Same(t, c, providerConfig("googleai/gemini-2.5-flash", c), "Gemini takes the common names")
+	common := map[string]any{"temperature": 0.2, "topP": 0.9, "maxOutputTokens": 64, "stopSequences": []string{"END"}}
+	assert.Equal(t, common, providerConfig("googleai/gemini-2.5-flash", c), "Gemini takes the common names, as a map: its plugin refuses another provider's config type")
+	assert.Equal(t, common, providerConfig("vertexai/gemini-2.5-flash", c))
+	assert.Equal(t, common, providerConfig("llmfake/echo", c), "an unknown provider gets the common names too")
 	assert.Equal(t, map[string]any{"num_predict": 8}, providerConfig("ollama/x", &ai.GenerationCommonConfig{MaxOutputTokens: 8}), "unset settings stay out")
 }

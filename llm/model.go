@@ -337,22 +337,21 @@ func (s *modelSink) config(req chatRequest) *ai.GenerationCommonConfig {
 }
 
 // providerConfig is the generation config in the shape a provider's model
-// validates: Genkit checks a request's config against the plugin's own
-// schema, and only some take GenerationCommonConfig's names.
-func providerConfig(model string, c *ai.GenerationCommonConfig) any {
+// validates. Genkit resolves a request's config into the plugin's own config
+// type: it takes that exact type or a map, and refuses any other type, so
+// the settings always travel as a map with the provider's key names. Gemini
+// (googleai, vertexai), OpenRouter and any other provider take the common
+// names of ai.GenerationCommonConfig.
+func providerConfig(model string, c *ai.GenerationCommonConfig) map[string]any {
 	provider, _, _ := strings.Cut(model, "/")
-	maxKey, stopKey, topPKey := "", "", "top_p"
+	maxKey, stopKey, topPKey := "maxOutputTokens", "stopSequences", "topP"
 	switch provider {
 	case "ollama":
-		maxKey, stopKey = "num_predict", "stop"
+		maxKey, stopKey, topPKey = "num_predict", "stop", "top_p"
 	case "anthropic":
-		maxKey, stopKey = "max_tokens", "stop_sequences"
+		maxKey, stopKey, topPKey = "max_tokens", "stop_sequences", "top_p"
 	case "openai":
-		maxKey, stopKey = "max_completion_tokens", "stop"
-	case "openrouter":
-		maxKey, stopKey, topPKey = "maxOutputTokens", "stopSequences", "topP"
-	default:
-		return c // googleai and others take the common names
+		maxKey, stopKey, topPKey = "max_completion_tokens", "stop", "top_p"
 	}
 	m := map[string]any{}
 	if c.Temperature != 0 {
