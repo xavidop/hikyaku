@@ -2,6 +2,13 @@
 
 All notable changes to hikyaku are listed here, newest first. Versions follow [Semantic Versioning](https://semver.org/). Each new release is added at the top, with notes generated from the commit messages.
 
+# [1.6.0](https://github.com/xavidop/hikyaku/compare/v1.5.1...v1.6.0) (2026-11-13)
+
+
+### Features
+
+* oauth2 for http poll sources ([#24](https://github.com/xavidop/hikyaku/issues/24)) ([bf936c6](https://github.com/xavidop/hikyaku/commit/bf936c6e4634b43a6a0b6bda3cbe41d7f4b17d1c))
+
 ## [1.5.1](https://github.com/xavidop/hikyaku/compare/v1.5.0...v1.5.1) (2026-11-13)
 
 
