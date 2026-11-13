@@ -119,6 +119,7 @@ A response is read up to 10MiB; anything past that is cut off. With `split`, the
 | `method` | Request method (default `GET`). |
 | `body` | Request body, sent as written (it is not a per-message template). |
 | `headers` | Static request headers. `User-Agent` is `hikyaku` unless one is set here. |
+| `oauth2` | Fetch an OAuth 2.0 access token and send it as a bearer token on every poll. See [OAuth 2.0](#oauth-20). |
 | `interval` | Time between polls (default 30s). |
 | `timeout` | Timeout of each request (default 10s). |
 | `retry` | Attempts per poll: `attempts` (3), `backoff` (1s), `max_backoff` (10s), `jitter` (`full`), and `retry_on`, `never_on` and `respect_retry_after`, matched as for a destination. |
@@ -228,6 +229,27 @@ With `oauth2`, hikyaku asks the token endpoint for an access token with the clie
 - The token endpoint uses the destination's `tls` settings. The [egress](#egress) guard does not apply to it: the spec names it, not a message.
 
 Only the client credentials grant is supported. A flow that needs a person to sign in (authorization code) is not.
+
+A poll source takes the same `oauth2` block, with the same keys, for an API that wants a token to be read:
+
+```yaml
+sources:
+  - name: open-tickets
+    type: https
+    mode: poll
+    url: https://api.helpdesk.example.com/v1/tickets?status=open
+    oauth2:
+      token_url: https://login.helpdesk.example.com/oauth2/token
+      client_id: "{{secrets.HELPDESK_CLIENT_ID}}"
+      client_secret: "{{secrets.HELPDESK_CLIENT_SECRET}}"
+      scopes: [tickets.read]
+```
+
+- The token is kept in memory, per source, and replaced 30 seconds before it expires.
+- When the API answers `401`, hikyaku drops the token, fetches a new one and polls once more.
+- When no token can be fetched, the API is not called and the poll fails with the `oauth2` tag. The poll's `retry` applies, and the next `interval` tries again.
+- The token is not put on the message.
+- `oauth2` applies to poll mode only. A listen source checks its callers with `auth`.
 
 ### Compression
 

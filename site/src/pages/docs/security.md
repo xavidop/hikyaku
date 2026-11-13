@@ -158,6 +158,33 @@ destinations:
 
 Only the client credentials grant is supported: there is no flow where a person signs in.
 
+### OAuth 2.0 for polls
+
+An http or https source in poll mode takes the same `oauth2` block, for an API that wants a
+token to be read.
+
+```yaml
+sources:
+  - name: open-tickets
+    type: https
+    mode: poll
+    url: https://api.helpdesk.example.com/v1/tickets?status=open
+    oauth2:
+      token_url: https://login.helpdesk.example.com/oauth2/token
+      client_id: "{{secrets.HELPDESK_CLIENT_ID}}"
+      client_secret: "{{secrets.HELPDESK_CLIENT_SECRET}}"
+      scopes: [tickets.read]
+```
+
+- The token is sent as `Authorization: Bearer <token>` on every poll. It is not put on the
+  message.
+- A `401` gets a new token and one more poll.
+- When no token can be fetched, the API is not called. The poll fails, and the next
+  `interval` tries again.
+
+A listen source does not use `oauth2`. To check the access token a caller sends, use
+[`auth.jwt`](#inbound-authentication).
+
 ## SSRF guard
 
 SSRF (server-side request forgery) is an attack where someone makes a server send a request to a

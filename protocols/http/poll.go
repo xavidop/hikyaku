@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +40,7 @@ type Poller struct {
 	split    *transform.JQ
 	dedupe   *dedupe
 	client   *http.Client
+	oauth    *tokenSource // set with oauth2:
 	log      *slog.Logger
 	rnd      func() float64
 
@@ -89,6 +92,14 @@ func newPoller(s plugin.Spec, src *config.Source) (*Poller, error) {
 		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 	p.client = &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsCfg}}
+	if src.OAuth2 != nil {
+		// The token endpoint gets the source's TLS settings, on connections
+		// of its own.
+		tc := &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsCfg}}
+		if p.oauth, err = newTokenSource(src.OAuth2, tc); err != nil {
+			return nil, fmt.Errorf("source %s: %w", s.Name, err)
+		}
+	}
 	return p, nil
 }
 
@@ -151,9 +162,31 @@ func (p *Poller) pollOnce(ctx context.Context, out chan<- *envelope.Envelope) er
 	return lastErr
 }
 
+// fetch makes one poll. With oauth2, a 401 means the API no longer takes
+// the token (revoked, or its keys changed): the poll is made once more with
+// a new one.
 func (p *Poller) fetch(ctx context.Context) ([]byte, string, bool, error) {
 	rctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
+	if p.oauth == nil {
+		return p.once(rctx, "")
+	}
+	for try := 0; ; try++ {
+		tok, err := p.oauth.get(rctx)
+		if err != nil {
+			return nil, "", false, err
+		}
+		data, ct, changed, err := p.once(rctx, tok)
+		var pe *plugin.Error
+		if try > 0 || !errors.As(err, &pe) || !slices.Contains(pe.Tags, "401") {
+			return data, ct, changed, err
+		}
+		p.oauth.drop(tok)
+	}
+}
+
+// once sends one poll request and reads its answer.
+func (p *Poller) once(rctx context.Context, token string) ([]byte, string, bool, error) {
 	var rb io.Reader
 	if p.body != "" {
 		rb = strings.NewReader(p.body)
@@ -164,6 +197,9 @@ func (p *Poller) fetch(ctx context.Context) ([]byte, string, bool, error) {
 	}
 	for k, v := range p.headers {
 		req.Header.Set(k, v)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	p.mu.Lock()
 	if p.etag != "" {

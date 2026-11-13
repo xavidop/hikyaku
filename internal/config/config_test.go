@@ -699,6 +699,25 @@ func TestValidateOAuth2(t *testing.T) {
 	}
 }
 
+func TestValidateSourceOAuth2(t *testing.T) {
+	src := func(d string) string {
+		return strings.Replace(minimal, "  - { name: in, type: stdin }", "  - "+d, 1)
+	}
+	const o = `oauth2: { token_url: "https://l.test/t", client_id: a, client_secret: k }`
+	_, err := loadYAML(t, src(`{ name: in, type: https, mode: poll, url: "https://x.test/items", `+o+` }`))
+	require.NoError(t, err)
+	for d, want := range map[string]string{
+		`{ name: in, type: stdin, ` + o + ` }`:                                                                                `source "in".oauth2: applies to http and https sources in poll mode`,
+		`{ name: in, type: http, mode: listen, listen: ":8080", path: /in, ` + o + ` }`:                                       `source "in".oauth2: applies to http and https sources in poll mode`,
+		`{ name: in, type: http, mode: poll, url: "http://x.test", oauth2: {} }`:                                              `source "in".oauth2.token_url: is required`,
+		`{ name: in, type: http, mode: poll, url: "http://x.test", oauth2: { token_url: "https://l.test/t", client_id: a } }`: `source "in".oauth2.client_secret: is required`,
+		`{ name: in, type: http, mode: poll, url: "http://x.test", headers: { Authorization: x }, ` + o + ` }`:                `source "in".headers.Authorization: does not go with oauth2`,
+	} {
+		_, err := loadYAML(t, src(d))
+		assert.Contains(t, errText(t, err), want, d)
+	}
+}
+
 func TestValidateShadow(t *testing.T) {
 	with := func(d, route string) string {
 		s := strings.Replace(minimal, "  - { name: out, type: stdout }", "  - { name: out, type: stdout }\n  - "+d, 1)

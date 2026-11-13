@@ -51,6 +51,7 @@ Durations read like `500ms`, `30s`, `5m`, `1h`, `7d`; sizes like `512`, `8KiB`, 
 | `max_body_bytes` | [Size](#size) | Largest accepted message (default 10MiB; grpc and openai 4MiB; tcp, udp and mqtt 1MiB). A listen source refuses a larger one (http 413, grpc RESOURCE_EXHAUSTED); a subscribe or poll source logs it and acknowledges it, so it cannot loop forever. |
 | `url` | string | poll or subscribe: the endpoint. |
 | `headers` | map of string | poll or subscribe: request headers. |
+| `oauth2` | [OAuth2](#oauth2) | http poll: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token on every poll. |
 | `method` | string | poll: request method (default GET). |
 | `body` | string | poll: request body. |
 | `interval` | [Duration](#duration) | poll: time between polls (default 30s). |

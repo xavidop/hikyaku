@@ -167,6 +167,7 @@ type Source struct {
 
 	URL          string            `yaml:"url,omitempty" jsonschema_description:"poll or subscribe: the endpoint."`
 	Headers      map[string]string `yaml:"headers,omitempty" jsonschema_description:"poll or subscribe: request headers."`
+	OAuth2       *OAuth2           `yaml:"oauth2,omitempty" jsonschema_description:"http poll: fetch an OAuth 2.0 access token with the client credentials grant and send it as a bearer token on every poll."`
 	Method       string            `yaml:"method,omitempty" jsonschema_description:"poll: request method (default GET)."`
 	Body         string            `yaml:"body,omitempty" jsonschema_description:"poll: request body."`
 	Interval     Duration          `yaml:"interval,omitempty" jsonschema_description:"poll: time between polls (default 30s)."`
@@ -553,8 +554,8 @@ type Sign struct {
 	TimestampHeader string `yaml:"timestamp_header,omitempty" jsonschema_description:"When set, this header carries the send time in Unix seconds, and the signature covers <timestamp>.<body>, so a receiver can refuse an old request."`
 }
 
-// OAuth2 is the client credentials grant of an http destination: hikyaku
-// asks token_url for an access token, keeps it until shortly before it
+// OAuth2 is the client credentials grant of an http destination or an http
+// poll source: hikyaku asks token_url for an access token, keeps it until shortly before it
 // expires, and sends it as a bearer token.
 type OAuth2 struct {
 	TokenURL     string            `yaml:"token_url" jsonschema:"required" jsonschema_description:"The authorization server's token endpoint."`
