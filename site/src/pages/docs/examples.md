@@ -69,7 +69,8 @@ Support events routed to teams by the AI router. It shows:
 - a router fallback chain of CEL rules and a static catch-all.
 
 `hikyaku.yaml` uses a real decision model (`TYPESAFE_API_KEY`); `hikyaku.llmfake.yaml` uses the
-fake one.
+fake one. The example's README shows how to run it on
+[Gemini Decision 1](/docs/routing/#gemini-decision-1) instead.
 
 ```sh
 ./bin/hikyaku route --dry-run -f examples/ai-triage/hikyaku.llmfake.yaml \

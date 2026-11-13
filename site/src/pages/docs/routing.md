@@ -151,7 +151,7 @@ reports itself.
 | | `engine: decision` (default) | `engine: generative` |
 |---|---|---|
 | Plugin | System One (`github.com/firebase/genkit/go/plugins/systemone/exp`, experimental) | the Genkit model plugins `googlegenai`, `anthropic`, `openai`, `openrouter` and `ollama` |
-| Models | `typesafe/jev-*`, `openrouter-decisions/liquid/d1`, `cloudflare-decisions/@cf/cloudflare/clef`, `ollama-decisions/clef`, custom servers | any chat model under the `googleai/`, `anthropic/`, `openai/`, `openrouter/` or `ollama/` prefix, such as `googleai/gemini-2.5-flash` or `openrouter/anthropic/claude-sonnet-4.5` |
+| Models | `typesafe/jev-*`, `openrouter-decisions/liquid/d1`, `openrouter-decisions/google/gemini-decision-1`, `cloudflare-decisions/@cf/cloudflare/clef`, `ollama-decisions/clef`, custom servers | any chat model under the `googleai/`, `anthropic/`, `openai/`, `openrouter/` or `ollama/` prefix, such as `googleai/gemini-2.5-flash` or `openrouter/anthropic/claude-sonnet-4.5` |
 | Output | typed answers with **calibrated probabilities** | `GenerateData[RouteDecision]`, with a self-reported confidence |
 | Why | cheap, fast, built for classification, with a real confidence for thresholds | flexible, explains itself, works with any provider |
 
@@ -370,6 +370,45 @@ server of your own may need no key).
 environment: `typesafe` (`TYPESAFE_API_KEY`), `openrouter` (`OPENROUTER_API_KEY`), `workersai`
 (`CLOUDFLARE_API_TOKEN`) and `ollama` (no key). `custom` adds any other server that speaks the
 System One protocol; its models are `<provider>/<id>`.
+
+### Gemini Decision 1
+
+[Gemini Decision 1](https://aistudio.google.com/docs/models/gemini-decision-1) is Google's decision
+model. hikyaku reaches it through OpenRouter's decision server, as
+`openrouter-decisions/google/gemini-decision-1`. It needs `OPENROUTER_API_KEY`, not a Gemini API
+key.
+
+```yaml
+secrets:
+  OPENROUTER_API_KEY: env:OPENROUTER_API_KEY
+
+models:
+  decision: openrouter-decisions/google/gemini-decision-1
+  fallback:
+    decision: [openrouter-decisions/liquid/d1]   # optional: another decision model
+```
+
+Nothing else changes in a route: the candidates, `multi`, `min_confidence`, `min_margin`, history,
+sticky routing, the cache and the budget work as they do with any decision model. The
+[ai-triage example](/docs/examples/#ai-triage) passes its five labeled cases on this model with the
+thresholds it already has (accuracy 100%, ECE 0.03, about 250 ms per call).
+
+What to know about this model:
+
+- **With `multi: true`, a candidate's name may hold only letters, digits, `_` and `-`**, and at
+  most 64 characters. A name with a dot, such as `team.billing`, is refused with an HTTP 400, and
+  the router fallback chain takes every message. Without `multi`, any name works.
+- **Probabilities stay between 0.01 and 0.99.** With `multi: true`, a `min_confidence` above 0.99
+  never matches.
+- **Tune the thresholds on this model.** A threshold tuned on another decision model does not
+  carry over. Run [`hikyaku ai test`](/docs/cli/#hikyaku-ai-test) with your own cases.
+- **Pin the version in production.** `google/gemini-decision-1` follows the newest release. The
+  decision's `model` shows the version that answered, such as
+  `openrouter-decisions/gemini-decision-1-20261111`. Ask for that version by its dated name:
+  `openrouter-decisions/google/gemini-decision-1-20261111`.
+- **`GEMINI_API_KEY` does not work for this model.** The Gemini API has a decisions endpoint of its
+  own, but it does not speak the System One protocol, so neither the `googlegenai` plugin nor a
+  `custom` server reaches it.
 
 ## Try it
 

@@ -64,3 +64,21 @@ hikyaku run
 Pin the decision model version (`jev-1.13.0`). Calibration changes between releases, so thresholds tuned on one version do not carry over. `hikyaku lint` warns about `-latest`.
 
 The real spec was tuned that way. With the first candidate descriptions and `min_confidence: 0.6`, `hikyaku ai test` on `jev-1.13.0` scored 3/5: recall was perfect, but a refund also went to support, and a single customer's crash also paged on-call. Sharper descriptions brought it to 4/5, and `min_confidence: 0.9` to 5/5, with an expected calibration error of 0.03. The outage still reaches both support and on-call. The fake models in `hikyaku.llmfake.yaml` keep their own tuning: thresholds never carry over between models.
+
+## On Gemini Decision 1
+
+The same router runs on [Gemini Decision 1](https://aistudio.google.com/docs/models/gemini-decision-1), Google's decision model, through OpenRouter. Change three things in `hikyaku.yaml`:
+
+```yaml
+secrets:
+  OPENROUTER_API_KEY: env:OPENROUTER_API_KEY
+
+genkit:
+  systemone:
+    servers: [openrouter, ollama]
+
+models:
+  decision: openrouter-decisions/google/gemini-decision-1
+```
+
+With the candidates and `min_confidence: 0.9` unchanged, `hikyaku ai test` on this model scored 5/5, with an expected calibration error of 0.03 and about 250 ms per call. Run it again with your own cases before you rely on the thresholds. The [routing page](https://xavidop.github.io/hikyaku/docs/routing/#gemini-decision-1) lists what to know about this model.
