@@ -7,8 +7,8 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
-	github.com/xavidop/hikyaku v0.0.0
-	github.com/xavidop/hikyaku/grpcplugin v0.0.0
+	github.com/xavidop/hikyaku v1.6.1
+	github.com/xavidop/hikyaku/grpcplugin v1.6.1
 )
 
 require (
@@ -85,11 +85,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab // indirect
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-)
-
-// A plugin outside this repository requires the published versions instead;
-// inside it, the modules come from the checkout.
-replace (
-	github.com/xavidop/hikyaku => ../..
-	github.com/xavidop/hikyaku/grpcplugin => ../../grpcplugin
 )

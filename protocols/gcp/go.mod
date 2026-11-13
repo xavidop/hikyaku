@@ -10,7 +10,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/gcloud v0.45.0
-	github.com/xavidop/hikyaku v0.0.0
+	github.com/xavidop/hikyaku v1.6.1
 	google.golang.org/api v0.311.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab
 	google.golang.org/grpc v1.85.0
@@ -116,5 +116,3 @@ require (
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
 )
-
-replace github.com/xavidop/hikyaku => ../..
