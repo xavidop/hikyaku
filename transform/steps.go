@@ -113,11 +113,15 @@ func CompileWith(path string, specs []config.Transform, o Options) (Chain, error
 // message: a filter never drops a message by accident.
 type FilterStep struct{ Expr *Expr }
 
+// FilterErrorAttr is the attribute a filter step that could not be
+// evaluated leaves on the message, with the error.
+const FilterErrorAttr = "transform.filter_error"
+
 // Apply evaluates the filter.
 func (f FilterStep) Apply(env *envelope.Envelope) (bool, error) {
 	ok, err := f.Expr.Bool(env)
 	if err != nil {
-		env.SetAttribute("transform.filter_error", err.Error())
+		env.SetAttribute(FilterErrorAttr, err.Error())
 		return true, nil
 	}
 	return ok, nil

@@ -61,6 +61,19 @@ An expression that cannot be evaluated for a message, for example because a key 
 **keeps** the message. A filter never drops a message by accident. A route also has a `filter:`
 key of its own: the same check, in a shorter form.
 
+A message that is kept this way is not silent:
+
+- `hikyaku_filter_errors_total{scope,name}` counts it. `scope` is `route` or `destination`,
+  and `name` is the name of that route or destination.
+- The relay logs a warning with the error. It logs at most one a minute for each route and
+  destination.
+- The message's report has a `filter_error`, which `hikyaku route`, `hikyaku send` and
+  `hikyaku tail --json` show.
+- [`hikyaku test`](/docs/cli/#hikyaku-test) fails the test.
+
+To drop a message that has no such key, check for the key first:
+`has(msg.json.type) && msg.json.type == "order"`.
+
 ## jq
 
 ```yaml

@@ -74,9 +74,12 @@ type Engine struct {
 	spec *config.Spec
 	opts Options
 	log  *slog.Logger
-	m    *metrics.Metrics
-	now  func() time.Time
-	rand func() float64
+	// filterWarned is when each route or destination last warned about a
+	// filter it could not evaluate.
+	filterWarned sync.Map
+	m            *metrics.Metrics
+	now          func() time.Time
+	rand         func() float64
 
 	sources  []plugin.Source
 	routes   []*route
@@ -668,5 +671,7 @@ func (e *Engine) Buffer() chan<- *envelope.Envelope { return e.buffer }
 // transformOptions is what transforms need from the spec: the egress guard
 // of enrich steps.
 func (e *Engine) transformOptions() transform.Options {
-	return transform.Options{Egress: plugin.Egress{Allow: e.spec.Egress.Allow, AllowPrivate: e.spec.Egress.AllowPrivate}}
+	return transform.Options{
+		Egress: plugin.Egress{Allow: e.spec.Egress.Allow, AllowPrivate: e.spec.Egress.AllowPrivate},
+	}
 }

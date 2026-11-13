@@ -47,6 +47,7 @@ type Metrics struct {
 	RouterFallback  *prometheus.CounterVec   // hikyaku_router_fallback_total{route,to}
 	RouterSkipped   *prometheus.CounterVec   // hikyaku_router_skipped_total{route,router}
 	Deduped         *prometheus.CounterVec   // hikyaku_deduped_total{source}
+	FilterErrors    *prometheus.CounterVec   // hikyaku_filter_errors_total{scope,name}
 
 	HistoryReads  *prometheus.CounterVec   // hikyaku_history_reads_total{route,outcome}
 	HistoryErrors *prometheus.CounterVec   // hikyaku_history_errors_total{op}
@@ -94,6 +95,7 @@ func New() *Metrics {
 		RouterFallback:   f.counter("hikyaku_router_fallback_total", "Router fallback hops.", "route", "to"),
 		RouterSkipped:    f.counter("hikyaku_router_skipped_total", "Messages a router's when condition left out: they went to the next router with no call (no model spend for an ai router).", "route", "router"),
 		Deduped:          f.counter("hikyaku_deduped_total", "Messages a source's dedupe dropped: their key was seen within the ttl.", "source"),
+		FilterErrors:     f.counter("hikyaku_filter_errors_total", "Messages a filter could not be evaluated for (a key it reads is missing, or a type does not match): the message was kept. scope is route or destination.", "scope", "name"),
 		HistoryReads:     f.counter("hikyaku_history_reads_total", "History reads, by outcome (hit, empty, error).", "route", "outcome"),
 		HistoryErrors:    f.counter("hikyaku_history_errors_total", "History store errors, by operation.", "op"),
 		HistoryTurns:     f.histogram("hikyaku_history_turns", "Past calls sent to the model with a message.", []float64{0, 1, 2, 4, 8, 16, 32}, "route"),

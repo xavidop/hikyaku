@@ -200,6 +200,9 @@ func (a *app) newSendCmd() *cobra.Command {
 
 func (a *app) printDelivery(w io.Writer, id string, rep engine.DeliveryReport) {
 	st := a.style(w)
+	if rep.FilterError != "" {
+		fprintf(w, "%s %s: a filter could not be evaluated, so the message was kept: %s\n", st.Warn("!"), rep.Destination, rep.FilterError)
+	}
 	switch {
 	case rep.Filtered:
 		fprintf(w, "%s %s: filtered out by a transform\n", st.Warn("-"), rep.Destination)
@@ -294,6 +297,9 @@ func (a *app) newRouteCmd() *cobra.Command {
 
 func (a *app) printRoute(w io.Writer, r engine.RouteReport) {
 	st := a.style(w)
+	if r.FilterError != "" {
+		fprintf(w, "%s route %s: a filter could not be evaluated, so the message was kept: %s\n", st.Warn("!"), r.Route, r.FilterError)
+	}
 	switch {
 	case r.Filtered:
 		fprintf(w, "route %s: %s\n", st.Info(r.Route), st.Dim("filtered out"))
