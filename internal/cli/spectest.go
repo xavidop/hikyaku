@@ -27,6 +27,7 @@ import (
 	"github.com/xavidop/hikyaku/plugin"
 	"github.com/xavidop/hikyaku/router"
 	"github.com/xavidop/hikyaku/store"
+	"github.com/xavidop/hikyaku/transform"
 )
 
 // DefaultTestFile is the file hikyaku test reads when it gets none.
@@ -38,7 +39,21 @@ type SpecTests struct {
 	// Decide answers for a route's router in every test, so no model is
 	// called: route name → the destinations it picks.
 	Decide map[string][]string `yaml:"decide,omitempty" json:"decide,omitempty"`
-	Tests  []SpecTest          `yaml:"tests" json:"tests"`
+	// Enrich answers the calls of enrich transforms in every test, so no
+	// request is made.
+	Enrich []SpecEnrich `yaml:"enrich,omitempty" json:"enrich,omitempty"`
+	Tests  []SpecTest   `yaml:"tests" json:"tests"`
+}
+
+// SpecEnrich is the answer to the calls of an enrich transform.
+type SpecEnrich struct {
+	// URL is the URL the step calls, after its template. A * stands for
+	// any run of characters.
+	URL string `yaml:"url" json:"url"`
+	// Answer is the JSON the call returns.
+	Answer any `yaml:"answer,omitempty" json:"answer,omitempty"`
+	// Error makes the call fail with this text.
+	Error string `yaml:"error,omitempty" json:"error,omitempty"`
 }
 
 // SpecTest is one message and what is expected of it.
@@ -59,7 +74,9 @@ type SpecTest struct {
 	Down []string `yaml:"down,omitempty" json:"down,omitempty"`
 	// Decide adds to, or replaces, the file's decide for this test.
 	Decide map[string][]string `yaml:"decide,omitempty" json:"decide,omitempty"`
-	Expect SpecExpect          `yaml:"expect" json:"expect"`
+	// Enrich comes before the file's enrich for this test.
+	Enrich []SpecEnrich `yaml:"enrich,omitempty" json:"enrich,omitempty"`
+	Expect SpecExpect   `yaml:"expect" json:"expect"`
 }
 
 // SpecExpect is what a test checks. A key left out is not checked.
@@ -78,6 +95,9 @@ type SpecExpect struct {
 	Delivered map[string]SpecGot `yaml:"delivered,omitempty" json:"delivered,omitempty"`
 	// Routes checks single routes.
 	Routes map[string]SpecRoute `yaml:"routes,omitempty" json:"routes,omitempty"`
+	// FilterErrors allows a filter that cannot be evaluated for the
+	// message (the relay keeps such a message). Without it, the test fails.
+	FilterErrors bool `yaml:"filter_errors,omitempty" json:"filter_errors,omitempty"`
 }
 
 // SpecGot is what a destination must have received.
@@ -184,6 +204,54 @@ func (s *standIns) last(dest string) *envelope.Envelope {
 		sk.mu.Unlock()
 	}
 	return out
+}
+
+// enrichStubs answers the enrich calls of one test from its enrich list.
+type enrichStubs struct {
+	stubs []SpecEnrich
+	match []*regexp.Regexp
+
+	mu      sync.Mutex
+	missing []string // calls no entry answers
+}
+
+func newEnrichStubs(f *SpecTests, t SpecTest) (*enrichStubs, error) {
+	s := &enrichStubs{stubs: append(slices.Clone(t.Enrich), f.Enrich...)}
+	for i, st := range s.stubs {
+		if st.URL == "" {
+			return nil, fmt.Errorf("enrich[%d]: url is required", i)
+		}
+		if st.Error != "" && st.Answer != nil {
+			return nil, fmt.Errorf("enrich[%d] (%s): set answer or error, not both", i, st.URL)
+		}
+		parts := strings.Split(st.URL, "*")
+		for j := range parts {
+			parts[j] = regexp.QuoteMeta(parts[j])
+		}
+		s.match = append(s.match, regexp.MustCompile("^"+strings.Join(parts, ".*")+"$"))
+	}
+	return s, nil
+}
+
+// call answers one enrich call. The first entry whose url matches wins; a
+// call nothing answers fails, and fails the test.
+func (s *enrichStubs) call(c transform.EnrichCall) (any, error) {
+	for i, re := range s.match {
+		if !re.MatchString(c.URL) {
+			continue
+		}
+		if st := s.stubs[i]; st.Error != "" {
+			return nil, fmt.Errorf("%s %s: %s", c.Method, c.URL, st.Error)
+		}
+		return plainJSON(s.stubs[i].Answer)
+	}
+	call := c.Method + " " + c.URL
+	s.mu.Lock()
+	if !slices.Contains(s.missing, call) {
+		s.missing = append(s.missing, call)
+	}
+	s.mu.Unlock()
+	return nil, fmt.Errorf("%s: the test has no answer for this call", call)
 }
 
 // readSpecTests reads one test file, strictly: an unknown key is an error.
@@ -385,9 +453,13 @@ func (a *app) runSpecTest(ctx context.Context, l *config.Loaded, ai router.AIFac
 	for _, s := range spec.Stores {
 		stores[s.Name] = store.NewMemory(s.Name)
 	}
+	enrich, err := newEnrichStubs(f, t)
+	if err != nil {
+		return fail("%v", err)
+	}
 	e, err := engine.New(ctx, spec, engine.Options{
 		Logger: a.quietLogger(), Metrics: metrics.New(), AI: ai, Stores: stores, Routers: routers,
-		NoSources: true, NoWait: true, Sinks: sinks.sink, Now: a.deps.Now,
+		NoSources: true, NoWait: true, Sinks: sinks.sink, Enrich: enrich.call, Now: a.deps.Now,
 	})
 	if err != nil {
 		return fail("the relay does not build: %v", err)
@@ -400,6 +472,9 @@ func (a *app) runSpecTest(ctx context.Context, l *config.Loaded, ai router.AIFac
 	}
 	res.Report = rep
 	res.Failures = t.Expect.check(spec, rep, sinks)
+	for _, call := range enrich.missing {
+		res.Failures = append(res.Failures, fmt.Sprintf("enrich: %s has no answer in the test file (add its url under enrich)", call))
+	}
 	res.Passed = len(res.Failures) == 0
 	res.Duration = time.Since(start)
 	return res
@@ -440,6 +515,19 @@ func (x SpecExpect) check(spec *config.Spec, rep *engine.Report, sinks *standIns
 		}
 	}
 
+	if !x.FilterErrors {
+		const kept = "a filter could not be evaluated, so the message was kept: %s (filter_errors: true allows it)"
+		for _, r := range rep.Routes {
+			if r.FilterError != "" {
+				bad("route %s: "+kept, r.Route, r.FilterError)
+			}
+			for _, d := range r.Deliveries {
+				if d.FilterError != "" {
+					bad("destination %s: "+kept, d.Destination, d.FilterError)
+				}
+			}
+		}
+	}
 	if x.Status != "" && x.Status != rep.Status {
 		msg := fmt.Sprintf("status: want %s, got %s", x.Status, rep.Status)
 		if rep.Error != "" {

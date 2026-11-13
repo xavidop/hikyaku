@@ -53,11 +53,14 @@ type DeliveryReport struct {
 	Destination string `json:"destination"`
 	// ServedBy is the destination that took the message: the primary or a
 	// fallback.
-	ServedBy     string         `json:"served_by,omitempty"`
-	Endpoint     string         `json:"endpoint,omitempty"`
-	Attempts     int            `json:"attempts"`
-	Hops         []Hop          `json:"hops"`
-	Filtered     bool           `json:"filtered,omitempty"`
+	ServedBy string `json:"served_by,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+	Attempts int    `json:"attempts"`
+	Hops     []Hop  `json:"hops"`
+	Filtered bool   `json:"filtered,omitempty"`
+	// FilterError is a filter of the destination that could not be
+	// evaluated for this message: the message was kept.
+	FilterError  string         `json:"filter_error,omitempty"`
 	Required     bool           `json:"required"`
 	DeadLettered bool           `json:"dead_lettered,omitempty"`
 	Error        string         `json:"error,omitempty"`
@@ -119,7 +122,11 @@ func (e *Engine) deliver(ctx context.Context, name string, env *envelope.Envelop
 	for i, d := range chain {
 		start := e.now()
 		henv := env.Clone()
-		keep, err := d.transforms.Apply(henv)
+		keep, ferr, err := applyChain(d.transforms, henv)
+		if ferr != "" {
+			rep.FilterError = ferr
+			e.filterFailed(scopeDestination, d.name, env, ferr)
+		}
 		if err != nil {
 			rep.Hops = append(rep.Hops, Hop{Destination: d.name, Outcome: outcomeError, Error: "transform: " + err.Error()})
 			rep.Err = fmt.Errorf("destination %s: transform: %w", d.name, err)

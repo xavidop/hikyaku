@@ -123,6 +123,7 @@ This is every metric hikyaku exports. They sit next to the Go runtime (`go_*`) a
 | `hikyaku_messages_received_total` | `source` | messages received |
 | `hikyaku_messages_acked_total` | `source`, `status` | messages finished, by outcome: `delivered`, `dead_lettered`, `unrouted`, `filtered` or `failed` |
 | `hikyaku_unrouted_total` | `source` | messages no route took |
+| `hikyaku_filter_errors_total` | `scope`, `name` | messages a filter could not be evaluated for, so they were kept: `scope` is `route` or `destination` |
 | `hikyaku_deduped_total` | `source` | messages a source's `dedupe` dropped: their key was seen within the `ttl` |
 | `hikyaku_queue_depth` | | messages waiting in the buffer: the memory queue, or the disk buffer with `buffer.type: disk` (gauge) |
 | `hikyaku_backpressure_total` | `source` | messages a source refused because the relay's buffer was full: http and openai answer 503, grpc `RESOURCE_EXHAUSTED`, udp drops the datagram |

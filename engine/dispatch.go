@@ -39,8 +39,11 @@ func viewOf(d plugin.Decision) *DecisionView {
 
 // RouteReport is what one route did with a message.
 type RouteReport struct {
-	Route        string           `json:"route"`
-	Filtered     bool             `json:"filtered,omitempty"`
+	Route    string `json:"route"`
+	Filtered bool   `json:"filtered,omitempty"`
+	// FilterError is a filter of the route that could not be evaluated for
+	// this message (a key it reads is missing): the message was kept.
+	FilterError  string           `json:"filter_error,omitempty"`
 	Decision     *DecisionView    `json:"decision,omitempty"`
 	Error        string           `json:"error,omitempty"`
 	DeadLettered bool             `json:"dead_lettered,omitempty"`
@@ -237,8 +240,17 @@ func (e *Engine) runRoute(ctx context.Context, r *route, env *envelope.Envelope)
 			rr.Filtered = true
 			return rr, nil
 		}
+		if err != nil {
+			rr.FilterError = err.Error()
+		}
 	}
-	keep, err := r.transforms.Apply(renv)
+	keep, ferr, err := applyChain(r.transforms, renv)
+	if ferr != "" {
+		rr.FilterError = ferr
+	}
+	if rr.FilterError != "" {
+		e.filterFailed(scopeRoute, r.name, env, rr.FilterError)
+	}
 	if err != nil && isSchemaError(err) && e.m != nil {
 		e.m.SchemaInvalid.WithLabelValues(r.name).Inc()
 	}

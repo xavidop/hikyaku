@@ -66,13 +66,20 @@ func (e *Engine) dryRun(ctx context.Context, routes []*route, env *envelope.Enve
 		rr := RouteReport{Route: r.name}
 		renv := env.Clone()
 		if r.filter != nil {
-			if ok, err := r.filter.Bool(renv); err == nil && !ok {
+			ok, err := r.filter.Bool(renv)
+			if err == nil && !ok {
 				rr.Filtered = true
 				out = append(out, rr)
 				continue
 			}
+			if err != nil {
+				rr.FilterError = err.Error()
+			}
 		}
-		keep, err := r.transforms.Apply(renv)
+		keep, ferr, err := applyChain(r.transforms, renv)
+		if ferr != "" {
+			rr.FilterError = ferr
+		}
 		switch quarantine := invalidTo(err); {
 		case len(quarantine) > 0:
 			rr.Decision = viewOf(invalidDecision(renv, quarantine, err))

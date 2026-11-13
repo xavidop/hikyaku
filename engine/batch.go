@@ -207,7 +207,11 @@ func (e *Engine) deliverBatch(ctx context.Context, name, format string, members 
 		var terr error
 		for _, m := range pending {
 			henv := members[m].Clone()
-			keep, err := d.transforms.Apply(henv)
+			keep, ferr, err := applyChain(d.transforms, henv)
+			if ferr != "" {
+				reps[m].FilterError = ferr
+				e.filterFailed(scopeDestination, d.name, members[m], ferr)
+			}
 			switch {
 			case err != nil:
 				terr = err

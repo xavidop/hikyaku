@@ -119,7 +119,10 @@ tests:
   - name: text is sent as it is
     source: in
     body: "not json"
-    expect: { delivered: { audit: { body: "not json", content_type: "text/plain; charset=utf-8" } } }
+    expect:
+      # The route's filter reads msg.json, which a text body does not have.
+      filter_errors: true
+      delivered: { audit: { body: "not json", content_type: "text/plain; charset=utf-8" } }
   - name: a test answers for the model
     source: chat
     body: { text: "where is my invoice" }
@@ -282,4 +285,125 @@ tests:
 	assert.Contains(t, out, `decide.triage: destination "nope" is not declared`)
 	assert.Contains(t, out, "nope.json")
 	assert.Contains(t, out, "5 of 5 test(s) failed")
+}
+
+// enrichSpec calls a server nothing can reach, and has a filter on each
+// level that reads a key a message may not have.
+const enrichSpec = `
+version: 1
+name: cli
+sources: [{ name: in, type: stdin }]
+destinations:
+  - name: crm
+    type: http
+    url: https://crm.example.com/hook
+    transforms: [{ filter: 'msg.json.customer.tier != "blocked"' }]
+  - { name: scores, type: http, url: https://scores.example.com/hook }
+routes:
+  - name: orders
+    from: [in]
+    filter: 'msg.json.kind == "order"'
+    transforms:
+      - enrich:
+          url: "https://customers.invalid/v1/customers/{{ .json.customer_id }}"
+          into: customer
+    to: [crm]
+  - name: optional
+    from: [in]
+    transforms:
+      - enrich: { url: "https://scores.invalid/score", method: POST, into: score, on_error: skip }
+    to: [scores]
+`
+
+func TestSpecTestsAnswerEnrichCalls(t *testing.T) {
+	dir := writeSpec(t, enrichSpec)
+	writeTests(t, dir, cli.DefaultTestFile, `
+enrich:
+  - { url: "https://customers.invalid/v1/customers/*", answer: { tier: free } }
+  - { url: "https://scores.invalid/score", answer: 7 }
+tests:
+  - name: the file's answers
+    source: in
+    body: { kind: order, customer_id: c1 }
+    expect:
+      status: delivered
+      routes: { orders: { to: [crm] } }
+      delivered:
+        crm: { contains: { customer: { tier: free } } }
+        scores: { contains: { score: 7 } }
+  - name: a test's answer comes first
+    source: in
+    body: { kind: order, customer_id: c2 }
+    enrich:
+      - { url: "https://customers.invalid/v1/customers/c2", answer: { tier: gold, seats: 3 } }
+    expect:
+      status: delivered
+      delivered: { crm: { contains: { customer: { tier: gold, seats: 3 } } } }
+  - name: a failed call
+    source: in
+    body: { kind: order, customer_id: c3 }
+    enrich:
+      - { url: "*/customers/c3", error: status 503 }
+    expect:
+      status: dead_lettered
+      routes:
+        orders: { error: "status 503" }
+`)
+	code, out, errb := run(t, dir, "test")
+	require.Equal(t, 0, code, out+errb)
+	assert.Contains(t, out, "3 test(s) passed")
+}
+
+func TestSpecTestsEnrichWithoutAnswer(t *testing.T) {
+	dir := writeSpec(t, enrichSpec)
+	writeTests(t, dir, cli.DefaultTestFile, `
+enrich:
+  - { url: "https://customers.invalid/v1/customers/*", answer: { tier: free } }
+tests:
+  - name: the score call has no answer
+    source: in
+    body: { kind: order, customer_id: c1 }
+    expect: { status: delivered, filter_errors: true }
+`)
+	code, out, _ := run(t, dir, "test")
+	assert.Equal(t, 1, code, out)
+	assert.Contains(t, out, "enrich: POST https://scores.invalid/score has no answer in the test file")
+
+	writeTests(t, dir, cli.DefaultTestFile, `
+tests:
+  - name: bad
+    source: in
+    body: {}
+    enrich: [{ url: "https://x.invalid", answer: 1, error: nope }]
+    expect: {}
+`)
+	code, out, _ = run(t, dir, "test")
+	assert.Equal(t, 1, code, out)
+	assert.Contains(t, out, "set answer or error, not both")
+}
+
+func TestSpecTestsFailOnAFilterThatCannotBeEvaluated(t *testing.T) {
+	dir := writeSpec(t, enrichSpec)
+	body := `
+enrich:
+  - { url: "https://customers.invalid/*", answer: { plan: team } }
+  - { url: "https://scores.invalid/score", answer: 7 }
+tests:
+  - name: no kind
+    source: in
+    body: { customer_id: c1 }
+    expect: { status: delivered%s }
+`
+	writeTests(t, dir, cli.DefaultTestFile, strings.ReplaceAll(body, "%s", ""))
+	code, out, _ := run(t, dir, "test")
+	assert.Equal(t, 1, code, out)
+	assert.Contains(t, out, "route orders: a filter could not be evaluated, so the message was kept")
+	assert.Contains(t, out, "msg.json.kind")
+	assert.Contains(t, out, "filter_errors: true allows it")
+	// The customer has no tier: the destination's filter fails too.
+	assert.Contains(t, out, "destination crm: a filter could not be evaluated")
+
+	writeTests(t, dir, cli.DefaultTestFile, strings.ReplaceAll(body, "%s", ", filter_errors: true"))
+	code, out, _ = run(t, dir, "test")
+	assert.Equal(t, 0, code, out)
 }

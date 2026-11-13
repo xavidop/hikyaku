@@ -67,6 +67,7 @@ These record where the build departs from the design, and the decisions the desi
   - `transform.CompileWith` takes `Options{Egress}`; the engine passes the spec's. `Compile` (used by `engine.Check`) passes none.
   - The SSRF guard moved to `internal/egress` (protocols/http aliases it). It guards an `enrich` whose URL has a template, like an http destination's.
   - `cache` is in-process, per step, keyed by the rendered URL and headers, at most 10,000 answers.
+- **Filter errors:** a filter that cannot be evaluated still keeps the message. `engine/filtererr.go` counts it (`hikyaku_filter_errors_total{scope,name}`), warns at most once a minute per route or destination, and sets `filter_error` on the route or delivery report. `applyChain` takes the `transform.filter_error` attribute off before a chain and puts it back after, so a route's error is not counted again for its destinations.
 - **`redact` transform:** the JSONPaths of `router.input.redact`, applied to the body. A body that is not JSON is a failure, never a pass.
 - **`sign` (http destinations):** `protocols/http/sign.go`, the sending side of `auth.hmac`. It signs last, over the bytes that go out. `timestamp_header` makes the signature cover `<timestamp>.<body>`, which `auth.hmac` does not verify.
 - **`oauth2` (http destinations):** `protocols/http/oauth2.go`, the client credentials grant written by hand (no `x/oauth2`). One token per destination, in memory, replaced 30s before it expires; one fetch at a time (the mutex is held during it). A `401` drops the token and sends once more. A failed fetch is tagged `oauth2`: transient for a connection error, `5xx` or `429`, else permanent. The token client has the destination's TLS settings and no egress guard.
@@ -86,6 +87,8 @@ These record where the build departs from the design, and the decisions the desi
 - **`hikyaku test`:** `internal/cli/spectest.go`.
   - Every test builds an engine of its own with `engine.Options.Sinks` (a stand-in for every endpoint, member and dead-letter hop, so the real sink is never built) and `Options.NoWait` (no backoff, hold, rate-limit wait; a batch closes after 1ms). Stores are memory stores passed through `Options.Stores`.
   - `decide` replaces a route's router through `Options.Routers`. An AI route the test's source cannot reach gets a router that is never called, so the AI factory and the secrets are loaded only when a selected test leaves a reachable AI route to its model.
+  - `enrich` in a test file answers enrich calls through `engine.Options.Enrich` (`transform.Options.Enrich`): no request is ever made, and a call with no entry fails the test.
+  - A filter that cannot be evaluated fails the test unless `expect.filter_errors` is true.
   - A stand-in sees the envelope after the destination's transforms, not what the sink would render (`url`, `headers`, `body` templates).
   - `config.ExpandPaths` skips `*.test.yaml` and `*.test.yml` in a spec directory (`config.IsTestFile`).
 - **`hikyaku forward`:** `internal/cli/forward.go`. It is a client of `/v1/tail` only (no new admin endpoint): one request per `received` event, at most 8 at once. A stream that never opened ends the command; one that ends later is opened again.

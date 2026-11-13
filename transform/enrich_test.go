@@ -1,9 +1,11 @@
 package transform
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -212,4 +214,33 @@ func TestCompileEnrichErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+// Options.Enrich answers the call: no request is made.
+func TestEnrichStepAnsweredByOptions(t *testing.T) {
+	var calls []EnrichCall
+	o := Options{Enrich: func(c EnrichCall) (any, error) {
+		calls = append(calls, c)
+		if strings.HasSuffix(c.URL, "/missing") {
+			return nil, errors.New("status 404")
+		}
+		return map[string]any{"tier": "gold"}, nil
+	}}
+	s := enrich(t, config.Enrich{
+		URL: "https://crm.invalid/customers/{{ .json.id }}", Into: "customer", Headers: map[string]string{"X-Tenant": "acme"},
+	}, o)
+	env := body(`{"id":42}`)
+	_, err := s.Apply(env)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":42,"customer":{"tier":"gold"}}`, env.BodyText())
+	require.Len(t, calls, 1)
+	assert.Equal(t, EnrichCall{Method: "GET", URL: "https://crm.invalid/customers/42", Headers: map[string]string{"X-Tenant": "acme"}}, calls[0])
+
+	_, err = s.Apply(body(`{"id":"missing"}`))
+	require.ErrorContains(t, err, "status 404")
+
+	post := enrich(t, config.Enrich{URL: "https://score.invalid", Method: "POST", Into: "score"}, o)
+	_, err = post.Apply(body(`{"text":"hi"}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"text":"hi"}`, string(calls[2].Body))
 }
