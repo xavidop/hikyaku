@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/MicahParks/jwkset v0.11.4 // indirect
-	github.com/MicahParks/keyfunc/v3 v3.9.1 // indirect
+	github.com/MicahParks/keyfunc/v3 v3.9.2 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
