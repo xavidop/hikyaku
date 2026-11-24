@@ -71,7 +71,7 @@ jobs:
           [[ "$RETAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must look like vX.Y.Z"; exit 1; }
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$RETAG^{commit}")"
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.work
           cache-dependency-path: "**/go.sum"
@@ -230,7 +230,7 @@ jobs:
           ref: ${{ needs.release.outputs.tag }}
           persist-credentials: true # the module tags are pushed with it
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.work
           cache-dependency-path: "**/go.sum"
