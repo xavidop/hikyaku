@@ -6,7 +6,7 @@
 # (make docker) lays out the same context for one platform. The base has no
 # shell or package manager and this file only copies, so a cross-platform build
 # needs no emulation. Dependabot keeps the base image's digest current.
-FROM gcr.io/distroless/static:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931
+FROM gcr.io/distroless/static:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/hikyaku /usr/local/bin/hikyaku
 # LICENSE always, and the THIRD_PARTY_* notices when the context has them.
